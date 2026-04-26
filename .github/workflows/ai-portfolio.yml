@@ -1,0 +1,22 @@
+name: AI Portfolio Architect
+on:
+  push:
+    paths:
+      - 'incoming/**'
+jobs:
+  build_portfolio:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: pip install google-genai
+      - env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python .github/scripts/ai_architect.py
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🤖 AI Automated Portfolio Build (Smart Update)"
