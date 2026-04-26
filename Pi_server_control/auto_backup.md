@@ -1,187 +1,168 @@
-# Pi Server Control: `auto_backup.sh`
+# 🚀 Release Notes
+
+### Version: v4.5 (Updated)
+The following changes have been made to the `auto_backup.sh` script in the `Pi_server_control` project:
+
+1. **Telegram Notification Enhancements**:
+   - Added notifications for resource conflict detection and resolution during the backup process.
+   - Improved messaging for better clarity and user feedback.
+
+2. **CPU Governor Enhancements**:
+   - Enhanced the `governor_loop` function to dynamically pause and resume resource-intensive processes (`dd`, `gzip`, `tar`, `rclone`) based on CPU load and Docker activity.
+   - Introduced logic to detect aggressive Docker commands (`docker compose`, `docker build`, `docker run`) and adjust backup operations accordingly.
+
+3. **Improved Resource Management**:
+   - Added `sudo sync; echo 3 | sudo tee /proc/sys/vm/drop_caches` to clear system caches before starting the backup process.
+
+4. **Cloud Upload Improvements**:
+   - Added retention policy for Google Drive backups: Deletes backups older than 48 hours from the cloud storage.
+
+5. **Code Refactoring**:
+   - Improved readability and maintainability of the script with better comments and structure.
+
+---
+
+# Pi Server Control - `auto_backup.sh`
 
 ## Overview
-
-The `auto_backup.sh` script is a comprehensive, automated backup solution for Raspberry Pi servers. It is designed to create backups of the Raspberry Pi OS, Home Assistant configurations, and Nextcloud administrative data. The script also includes features for resource management, cloud synchronization, and local retention policies. It is Docker-aware and ensures minimal disruption to system performance during backup operations.
+The `auto_backup.sh` script is a unified backup solution for Raspberry Pi servers. It is designed to back up the Raspberry Pi OS, Home Assistant configurations, and Nextcloud admin settings to both a local USB drive and Google Drive. The script is optimized for resource management and includes a Docker-aware CPU governor to ensure system stability during the backup process.
 
 ---
 
 ## Features
-
-1. **Unified Backup Pipeline**:
-   - Creates backups for:
-     - Raspberry Pi OS (`/dev/mmcblk0`)
-     - Home Assistant configurations
-     - Nextcloud administrative data (excluding user data)
+1. **Automated Backup Pipeline**:
+   - Creates backups for Raspberry Pi OS, Home Assistant, and Nextcloud admin settings.
    - Stores backups locally on a USB drive and uploads them to Google Drive.
 
-2. **Resource-Aware CPU Governor**:
+2. **Docker-Aware CPU Governor**:
    - Monitors system load and Docker activity.
    - Pauses resource-intensive backup processes during high system load or active Docker operations.
    - Resumes backup processes when system resources are available.
 
 3. **Telegram Notifications**:
-   - Sends real-time updates about the backup process, including success, failure, and resource management events.
+   - Sends real-time notifications about the backup process, including:
+     - Start and completion of the backup pipeline.
+     - Resource conflicts and resolutions.
+     - Success or failure of individual backup steps.
+     - Cloud upload status.
 
-4. **Cloud Synchronization**:
-   - Uploads Home Assistant and Nextcloud backups to Google Drive using `rclone`.
-   - Deletes cloud backups older than 48 hours to save storage space.
+4. **Retention Policies**:
+   - Deletes local backups older than 3 days.
+   - Deletes cloud backups older than 48 hours.
 
-5. **Local Retention Policy**:
-   - Deletes local backups older than 3 days to manage disk space on the USB drive.
-
-6. **System Cleanup**:
-   - Removes unnecessary files and clears system caches to free up space before starting the backup process.
+5. **System Maintenance**:
+   - Performs system cleanup tasks, including:
+     - Removing unused packages.
+     - Cleaning temporary files.
+     - Vacuuming system logs older than 3 days.
+     - Clearing system caches.
 
 ---
 
 ## Prerequisites
-
 1. **Hardware**:
-   - Raspberry Pi with a connected USB drive mounted at `/mnt/usb_backup`.
+   - Raspberry Pi 5 or compatible device.
+   - External USB storage device mounted at `/mnt/usb_backup`.
 
 2. **Software**:
-   - `rclone` installed and configured with access to Google Drive.
-   - `pv` for monitoring progress during the `dd` operation.
+   - `rclone` installed and configured for Google Drive.
+   - `pv` package for monitoring data transfer rates.
    - `curl` for Telegram notifications.
-   - `sudo` privileges for the user running the script.
+   - `tar` and `gzip` for compression.
 
-3. **Configuration**:
+3. **Permissions**:
+   - Script must be run with `sudo` privileges to perform system-level operations.
+
+4. **Configuration**:
    - Update the following variables in the script:
      - `TOKEN`: Your Telegram bot token.
      - `CHAT_ID`: Your Telegram chat ID.
-     - `BASE_USB_DIR`: Path to the mounted USB drive.
+     - `BASE_USB_DIR`: Path to the mounted USB storage.
      - `HA_SOURCE`: Path to the Home Assistant configuration directory.
-     - `NC_SOURCE`: Path to the Nextcloud administrative data directory.
-     - `rclone` configuration file path: Update the path to your `rclone.conf` file.
+     - `NC_SOURCE`: Path to the Nextcloud admin directory.
+     - `rclone` configuration file path.
 
 ---
 
 ## Usage
+1. **Make the script executable**:
+   ```bash
+   chmod +x auto_backup.sh
+   ```
 
-1. **Setup**:
-   - Place the `auto_backup.sh` script in a directory of your choice.
-   - Make the script executable:
-     ```bash
-     chmod +x auto_backup.sh
-     ```
-   - Ensure the USB drive is mounted at the path specified in `BASE_USB_DIR`.
+2. **Run the script**:
+   ```bash
+   sudo ./auto_backup.sh
+   ```
 
-2. **Run the Script**:
-   - Execute the script manually:
+3. **Automate with Cron**:
+   - Add the script to your crontab for periodic execution:
      ```bash
-     ./auto_backup.sh
+     sudo crontab -e
      ```
-   - Or schedule it to run automatically using `cron`:
-     ```bash
-     crontab -e
-     ```
-     Add the following line to schedule the script (e.g., daily at 2:00 AM):
+   - Add the following line to schedule the script (e.g., daily at 2 AM):
      ```bash
      0 2 * * * /path/to/auto_backup.sh
      ```
 
-3. **Monitor Logs**:
-   - Check the log file for detailed information about the backup process:
-     ```bash
-     tail -f /home/redwannabil/master_backup.log
-     ```
-
 ---
 
-## Backup Process Details
+## Script Workflow
+1. **Preparation**:
+   - Creates necessary directories for backups.
+   - Cleans up temporary files and performs system maintenance.
 
-### 1. **Preparation**
-- Creates necessary directories on the USB drive.
-- Cleans up temporary files, old logs, and system caches.
+2. **CPU Governor**:
+   - Monitors system load and Docker activity.
+   - Pauses and resumes backup processes based on system resource availability.
 
-### 2. **Throttled OS Backup**
-- Creates a compressed image of the Raspberry Pi OS (`/dev/mmcblk0`) using `dd` and `gzip`.
-- Limits the data transfer rate to 8 MB/s to reduce system impact.
+3. **Backup Steps**:
+   - **Step 1**: Creates a compressed image of the Raspberry Pi OS and saves it to the local USB drive.
+   - **Step 2**: Archives the Home Assistant configuration directory and saves it to the local USB drive.
+   - **Step 3**: Archives the Nextcloud admin directory (excluding `data` folder) and saves it to the local USB drive.
 
-### 3. **Home Assistant Backup**
-- Archives the Home Assistant configuration directory into a `.tar.gz` file.
+4. **Cloud Upload**:
+   - Deletes cloud backups older than 48 hours.
+   - Uploads Home Assistant and Nextcloud backups to Google Drive.
 
-### 4. **Nextcloud Admin Backup**
-- Archives the Nextcloud administrative data (excluding user data) into a `.tar.gz` file.
+5. **Retention Policy**:
+   - Deletes local backups older than 3 days.
 
-### 5. **Cloud Upload**
-- Uploads Home Assistant and Nextcloud backups to Google Drive using `rclone`.
-- Deletes cloud backups older than 48 hours.
-
-### 6. **Local Retention**
-- Deletes local backups older than 3 days to manage USB drive storage.
-
----
-
-## Resource Management
-
-The script includes a **CPU Governor** that monitors system load and Docker activity. If the system load exceeds `3.0` or if resource-intensive Docker commands are running, the script pauses backup processes (`dd`, `gzip`, `tar`, `rclone`). Once the load drops below `1.5` and Docker activity ceases, the backup processes resume.
-
----
-
-## Notifications
-
-The script uses Telegram to send real-time updates about the backup process. Notifications include:
-- Pipeline start and completion.
-- Success or failure of individual backup steps.
-- Resource management events (e.g., pausing/resuming backups).
+6. **Completion**:
+   - Sends a final notification indicating the successful completion of the backup pipeline.
 
 ---
 
 ## Logs
-
-All backup operations are logged in `/home/redwannabil/master_backup.log`. The log includes timestamps, step-by-step progress, and any errors encountered during the process.
-
----
-
-## Error Handling
-
-- If the OS backup fails, the script terminates immediately and sends a Telegram notification.
-- If Home Assistant or Nextcloud backups fail, the script continues but logs a warning and sends a Telegram notification.
-
----
-
-## Security Considerations
-
-- Ensure the `TOKEN` and `CHAT_ID` variables are kept secure and not exposed in public repositories.
-- Use appropriate permissions for the script and log files to prevent unauthorized access.
-
----
-
-## Customization
-
-- **Backup Frequency**: Adjust the `cron` schedule to change how often the script runs.
-- **Retention Period**: Modify the `-mtime` value in the `find` commands to change the local retention period.
-- **Cloud Storage**: Update the `rclone` configuration to use a different cloud provider if needed.
+- All logs are saved to `/home/redwannabil/master_backup.log`.
+- Logs include timestamps and detailed information about each step of the backup process.
 
 ---
 
 ## Troubleshooting
+1. **Backup Failure**:
+   - Check the log file for error messages: `/home/redwannabil/master_backup.log`.
+   - Ensure the USB drive is mounted at the correct location (`/mnt/usb_backup`).
+   - Verify that the `rclone` configuration file is correctly set up.
 
-1. **Script Fails to Run**:
-   - Ensure the script is executable (`chmod +x auto_backup.sh`).
-   - Verify the USB drive is mounted at the correct path.
-
-2. **Telegram Notifications Not Received**:
-   - Check the `TOKEN` and `CHAT_ID` values.
-   - Test the Telegram bot manually using `curl`:
+2. **Telegram Notifications Not Working**:
+   - Verify the `TOKEN` and `CHAT_ID` values in the script.
+   - Test the Telegram bot using the `curl` command:
      ```bash
-     curl -s -X POST "https://api.telegram.org/bot<TOKEN>/sendMessage" -d chat_id="<CHAT_ID>" -d text="Test message"
+     curl -s -X POST "https://api.telegram.org/bot<YOUR_TOKEN>/sendMessage" -d chat_id=<YOUR_CHAT_ID> -d text="Test message"
      ```
 
-3. **Cloud Upload Fails**:
-   - Verify the `rclone` configuration file path and credentials.
-   - Test the `rclone` connection manually:
-     ```bash
-     rclone lsd gdrive:
-     ```
-
-4. **High System Load**:
-   - The CPU Governor should automatically handle high system load. If issues persist, consider increasing the thresholds in the `governor_loop` function.
+3. **High System Load**:
+   - The CPU governor automatically pauses backup processes during high system load. Wait for the system to stabilize, and the backup will resume automatically.
 
 ---
 
-## Disclaimer
+## Notes
+- The script is designed to be run on a Raspberry Pi 5 but may work on other Linux-based systems with minor modifications.
+- Ensure sufficient storage space is available on the USB drive and Google Drive before running the script.
+- The script is designed to handle common errors gracefully and provide detailed logs and notifications for troubleshooting.
 
-This script is provided as-is without any warranty. Use it at your own risk. Ensure you have proper backups and test the script in a safe environment before deploying it in production.
+---
+
+## License
+This script is licensed under the MIT License. Feel free to use, modify, and distribute it as needed.
