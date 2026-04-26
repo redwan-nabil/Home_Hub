@@ -1,14 +1,46 @@
 import os
 import shutil
 import sys
-from google import genai
+import time
+from openai import OpenAI
 
-client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+# Authenticate directly with GitHub's internal AI servers
+client = OpenAI(
+    base_url="https://models.inference.ai.azure.com",
+    api_key=os.environ.get("GITHUB_TOKEN"),
+)
 
 INCOMING_DIR = "incoming"
 ROOT_DIR = "."
-# The Fallback Array: It will try these one by one until it defeats the 404 error
-MODELS_TO_TRY = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash', 'gemini-pro']
+
+# GitHub Models available to Pro users
+MODELS_TO_TRY = ['gpt-4o', 'gpt-4o-mini']
+
+def call_ai_with_retry(prompt):
+    for model in MODELS_TO_TRY:
+        for attempt in range(3):
+            try:
+                print(f"🤖 Attempting AI generation with GitHub Native Model: {model} (Attempt {attempt+1}/3)...")
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a Senior DevOps Engineer. Output ONLY raw Markdown documentation. Do not wrap it in ```markdown codeblocks."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.2
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                error_msg = str(e)
+                print(f"⚠️ Error with {model}: {error_msg}")
+                
+                if "429" in error_msg or "RateLimit" in error_msg:
+                    sleep_time = 2 ** attempt
+                    print(f"⏳ Rate limited. Sleeping for {sleep_time} seconds...")
+                    time.sleep(sleep_time)
+                    continue
+                break
+    return None
 
 def process_scripts():
     if not os.path.exists(INCOMING_DIR):
@@ -43,7 +75,7 @@ def process_scripts():
                         update_instructions = "This is an UPDATE. Compare OLD CODE and NEW CODE. ADD a '🚀 Release Notes' section at the top detailing changes."
 
                     prompt = f"""
-                    You are a Senior DevOps Engineer adding/updating '{filename}' in '{project_folder}'.
+                    You are adding/updating '{filename}' in '{project_folder}'.
                     {update_instructions}
                     Analyze the NEW CODE and write a detailed README. Output ONLY the raw Markdown.
                     --- NEW CODE ---
@@ -51,31 +83,19 @@ def process_scripts():
                     {old_code_text}
                     """
                     
-                    # --- THE UNBREAKABLE FALLBACK LOOP ---
-                    response = None
-                    for model_name in MODELS_TO_TRY:
-                        try:
-                            print(f"🤖 Attempting AI generation with model: {model_name}...")
-                            response = client.models.generate_content(
-                                model=model_name,
-                                contents=prompt
-                            )
-                            break # If successful, break out of the loop
-                        except Exception as e:
-                            print(f"⚠️ Model {model_name} failed: {e}")
-                    
-                    if not response:
-                        print(f"❌ FATAL ERROR: All AI models failed for {filename}.")
-                        sys.exit(1)
-                        
-                    readme_content = response.text.strip()
-                    if readme_content.startswith("```markdown"):
-                        readme_content = readme_content[11:-3].strip()
-                    elif readme_content.startswith("```"):
-                        readme_content = readme_content[3:-3].strip()
-                    
+                    readme_content = call_ai_with_retry(prompt)
                     base_name = os.path.splitext(filename)[0]
                     md_filename = f"{base_name}.md"
+                    
+                    if readme_content:
+                        readme_content = readme_content.strip()
+                        if readme_content.startswith("```markdown"):
+                            readme_content = readme_content[11:-3].strip()
+                        elif readme_content.startswith("```"):
+                            readme_content = readme_content[3:-3].strip()
+                    else:
+                        print(f"❌ AI blocked. Generating safe fallback template for {filename}...")
+                        readme_content = f"# {base_name}\n\nAutomated script deployed to `{project_folder}`.\n\n> **⚠️ System Note:** AI generation failed. Manual documentation required."
                     
                     shutil.move(filepath, target_script_path)
                     with open(os.path.join(final_project_path, md_filename), "w") as f:
