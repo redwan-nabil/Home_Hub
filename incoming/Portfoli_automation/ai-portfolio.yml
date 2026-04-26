@@ -1,0 +1,33 @@
+name: AI Portfolio Architect
+
+on:
+  push:
+    paths:
+      - 'incoming/**'
+
+# This silences the Node 20 deprecation warning by opting into Node 24 early
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build_portfolio:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install Dependencies
+        run: pip install openai
+      
+      - name: Run AI Architect
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}
+        run: python .github/scripts/ai_architect.py
+      
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🤖 AI Automated Portfolio Build (GitHub Native AI)"
