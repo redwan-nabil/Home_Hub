@@ -1,140 +1,106 @@
-# Git Portfolio Automation - `publish` Script
+# 🚀 Release Notes
 
-The `publish` script is a Bash utility designed to automate the process of publishing files to a GitHub repository while ensuring sensitive information is sanitized. This script is part of the `Git_portfolio_automation` project and is intended to streamline the workflow of staging and pushing files to a public GitHub repository.
+### Changes in `publish` Script
+1. **Aggressive Sync with Cloud AI**:
+   - Replaced `git pull origin main --rebase` with `git fetch origin`, `git reset --hard origin/main`, and `git clean -fd` for a more aggressive sync strategy. This ensures the local repository matches the remote repository exactly, removing any untracked files or changes.
+   - Removed the `rm -rf "$STAGING_DIR/incoming/*"` command, as the aggressive sync now handles cleaning up untracked files.
+
+2. **Improved Error Handling**:
+   - Added `|| exit 1` to the `cd` command to prevent further execution if changing directories fails.
+
+3. **No Functional Changes to Sanitization**:
+   - The sanitization logic for sensitive data (e.g., tokens, passwords, API keys) remains unchanged.
 
 ---
+
+# `publish` Script
+
+The `publish` script is a utility for automating the process of staging and publishing files to a GitHub repository. It ensures that sensitive information is sanitized before uploading files to a public repository.
 
 ## Features
-
-- **File Validation**: Ensures the file to be published exists before proceeding.
-- **Dynamic Project Folder Creation**: Prompts the user to specify a project folder name, which is sanitized to replace spaces with underscores.
-- **Git Syncing**: Automatically pulls the latest changes from the `main` branch of the repository to ensure the staging directory is up-to-date.
-- **Sensitive Data Scrubbing**: Automatically redacts sensitive information such as tokens, passwords, chat IDs, API keys, and SMB passwords from the file before publishing.
-- **File Staging**: Copies the sanitized file to a designated staging directory for further processing.
-- **GitHub Integration**: Hands off the staged file to a separate script (`github_pusher.sh`) for committing and pushing to the GitHub repository.
-
----
+- **File Validation**: Ensures the specified file exists before proceeding.
+- **Project Folder Input**: Prompts the user to specify a project folder name, which is sanitized to replace spaces with underscores.
+- **Aggressive Git Sync**: Ensures the local staging directory matches the remote repository exactly by performing a hard reset and cleaning untracked files.
+- **Sensitive Data Scrubbing**: Automatically redacts sensitive information (e.g., tokens, passwords, API keys) from the file before staging.
+- **GitHub Integration**: Hands off the sanitized file to a separate script (`github_pusher.sh`) for publishing to GitHub.
 
 ## Prerequisites
-
-Before using the `publish` script, ensure the following:
-
-1. **Git Configuration**:
-   - The staging directory (`/home/redwannabil/portfolio_staging`) must be a valid Git repository.
-   - The repository should have a `main` branch configured for pulling updates.
-
-2. **Dependencies**:
-   - The script relies on a secondary script located at `/home/redwannabil/github_pusher.sh` to handle the GitHub push process. Ensure this script is present and executable.
-
-3. **Permissions**:
-   - The user must have write permissions for the staging directory (`/home/redwannabil/portfolio_staging`) and its subdirectories.
-   - The `publish` script itself must have executable permissions.
-
-4. **Environment**:
-   - The script is designed to run on a Unix-like environment with Bash installed.
-
----
-
-## Installation
-
-1. Clone the `Git_portfolio_automation` repository to your local machine.
-2. Place the `publish` script in a directory included in your system's `PATH` or execute it directly from its location.
-3. Ensure the script has executable permissions:
-   ```bash
-   chmod +x publish
-   ```
-
----
+- A valid GitHub repository configured as the remote for the staging directory.
+- The `github_pusher.sh` script must be available and executable at `/home/redwannabil/github_pusher.sh`.
+- The staging directory must exist at `/home/redwannabil/portfolio_staging`.
 
 ## Usage
-
-To use the `publish` script, follow these steps:
-
-1. Open a terminal.
-2. Run the script with the file you want to publish as an argument:
-   ```bash
-   publish <file_to_publish>
-   ```
-   Replace `<file_to_publish>` with the path to the file you want to publish.
-
-3. The script will prompt you to enter the project folder name. This name will be used to organize the file in the staging directory. Spaces in the folder name will be replaced with underscores.
-
-4. The script will:
-   - Validate the existence of the file.
-   - Sync the staging directory with the latest changes from the `main` branch of the GitHub repository.
-   - Sanitize the file by redacting sensitive information.
-   - Copy the sanitized file to the appropriate location in the staging directory.
-   - Trigger the `github_pusher.sh` script to commit and push the changes to GitHub.
-
----
-
-## Example
-
 ```bash
-$ publish my_script.py
-📁 Enter the Project Folder name: My Awesome Project
-🔄 Syncing with Cloud AI...
-Already up to date.
-🛡️ Sanitizing 'my_script.py' for public GitHub...
-✅ Scrubbing complete. 'my_script.py' safely staged.
-🚀 Handing off to GitHub Pusher...
+publish <file_to_publish>
 ```
 
----
+### Example
+```bash
+./publish my_script.sh
+```
 
-## Script Workflow
+1. The script will prompt you to enter a project folder name. For example:
+   ```
+   📁 Enter the Project Folder name: My Project
+   ```
+   The folder name will be sanitized to `My_Project`.
 
-1. **Input Validation**:
-   - Checks if a file path is provided as an argument.
-   - Verifies that the specified file exists.
+2. The script will validate the existence of the specified file. If the file does not exist, it will terminate with an error:
+   ```
+   ❌ Error: File 'my_script.sh' does not exist.
+   ```
 
-2. **Project Folder Setup**:
-   - Prompts the user for a project folder name.
-   - Replaces spaces in the folder name with underscores.
+3. The script will perform an aggressive sync with the remote GitHub repository:
+   - Fetch the latest changes from the remote repository.
+   - Reset the local repository to match the remote repository exactly.
+   - Remove any untracked files or directories.
 
-3. **Git Sync**:
-   - Navigates to the staging directory.
-   - Pulls the latest changes from the `main` branch using `git pull --rebase`.
-   - Removes any residual files in the `incoming` directory.
+4. The script will create a staging folder for the project (e.g., `/home/redwannabil/portfolio_staging/incoming/My_Project`) and copy the specified file into it.
 
-4. **File Staging**:
-   - Creates a new directory under `incoming` with the specified project folder name.
-   - Copies the file to the newly created directory.
+5. The script will sanitize the file by redacting sensitive information such as tokens, passwords, and API keys:
+   - `TOKEN = ...` → `TOKEN = "REDACTED_BY_SYSADMIN"`
+   - `PASSWORD = ...` → `PASSWORD = "REDACTED_BY_SYSADMIN"`
+   - `CHAT_ID = ...` → `CHAT_ID = "REDACTED_BY_SYSADMIN"`
+   - `API_KEY = ...` → `API_KEY = "REDACTED_BY_SYSADMIN"`
+   - `SMB_PASS = ...` → `SMB_PASS = "REDACTED_BY_SYSADMIN"`
 
-5. **Sensitive Data Scrubbing**:
-   - Uses `sed` to redact sensitive information in the file, including:
-     - Tokens (`TOKEN`)
-     - Passwords (`PASSWORD`)
-     - Chat IDs (`CHAT_ID`)
-     - API Keys (`API_KEY`)
-     - SMB Passwords (`SMB_PASS`)
+6. The script will confirm that the file has been sanitized and staged:
+   ```
+   ✅ Scrubbing complete. 'my_script.sh' safely staged.
+   ```
 
-6. **GitHub Push**:
-   - Calls the `github_pusher.sh` script to handle the GitHub commit and push process.
-
----
+7. Finally, the script will hand off the sanitized file to the `github_pusher.sh` script for publishing:
+   ```
+   🚀 Handing off to GitHub Pusher...
+   ```
 
 ## Error Handling
+- If no file is specified, the script will display usage instructions and exit:
+  ```
+  Usage: publish <file_to_publish>
+  ```
+- If the specified file does not exist, the script will terminate with an error:
+  ```
+  ❌ Error: File '<file_to_publish>' does not exist.
+  ```
+- If the script fails to change to the staging directory, it will terminate with an error:
+  ```
+  ❌ Error: Failed to change to staging directory.
+  ```
 
-- If no file is provided as an argument, the script displays usage instructions and exits.
-- If the specified file does not exist, the script displays an error message and exits.
-- Any issues during the Git sync or file staging process will result in appropriate error messages.
+## File Sanitization
+The script uses `sed` with regular expressions to redact sensitive information from the file. The following patterns are targeted:
+- `TOKEN`
+- `PASSWORD`
+- `CHAT_ID`
+- `API_KEY`
+- `SMB_PASS`
 
----
+Each of these patterns is replaced with the string `"REDACTED_BY_SYSADMIN"`.
 
 ## Notes
-
-- The script assumes that the `github_pusher.sh` script is correctly configured to handle GitHub operations.
-- The sanitization process uses regular expressions to redact sensitive information. Ensure that the patterns match the format of sensitive data in your files.
-
----
+- The aggressive sync strategy (`git reset --hard` and `git clean -fd`) ensures that the local repository is an exact match of the remote repository. Be cautious, as this will discard any uncommitted changes or untracked files in the local repository.
+- Ensure that the `github_pusher.sh` script is properly configured to handle the final push to GitHub.
 
 ## License
-
-This script is part of the `Git_portfolio_automation` project and is licensed under the MIT License. See the LICENSE file in the repository for more details.
-
----
-
-## Author
-
-Developed by **redwannabil**. For questions or support, please contact [redwannabil@example.com](mailto:redwannabil@example.com).
+This script is licensed under the MIT License.

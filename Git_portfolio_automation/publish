@@ -18,12 +18,16 @@ if [ ! -f "$FILE" ]; then
     exit 1
 fi
 
-# --- THE PERMANENT FIX: SYNC FIRST, THEN STAGE ---
-echo "🔄 Syncing with Cloud AI..."
-cd "$STAGING_DIR"
-git pull origin main --rebase
-# Wipe any ghost folders left behind locally
-rm -rf "$STAGING_DIR/incoming/*"
+# --- THE SLEDGEHAMMER SYNC ---
+echo "🔄 Forcing aggressive sync with Cloud AI..."
+cd "$STAGING_DIR" || exit 1
+
+# 1. Download the latest cloud state
+git fetch origin
+# 2. Aggressively overwrite EVERYTHING local to match the cloud exactly
+git reset --hard origin/main
+# 3. Delete any leftover ghost files/folders that aren't tracked
+git clean -fd
 
 # Now create the fresh staging folder
 TARGET_DIR="$STAGING_DIR/incoming/$PROJECT_FOLDER"
