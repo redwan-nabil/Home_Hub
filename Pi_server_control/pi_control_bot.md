@@ -1,82 +1,84 @@
-# Pi Control Bot - Raspberry Pi Server Control with Telegram Bot
+# 🚀 Release Notes
 
-## Overview
-The `pi_control_bot.py` script is a powerful tool designed to manage and monitor a Raspberry Pi server remotely via Telegram. It includes secure command execution with Two-Factor Authentication (2FA), system performance monitoring, and an emergency thunderstorm radar for automated shutdown during severe weather conditions. The bot is designed to ensure security, reliability, and ease of use for administrators.
+### Updates in `pi_control_bot.py`:
+1. **Enhanced System Performance Monitoring**:
+   - Added detailed power draw calculations using Raspberry Pi PMIC data.
+   - Improved error handling for performance data retrieval.
+   - Enhanced performance metrics with GPU memory and system power draw.
+
+2. **Improved Thunderstorm Radar**:
+   - Added checks for admin activity (`is_admin_working`) and presence at home (`is_admin_home`) to decide on emergency shutdown actions.
+   - Enhanced alert messages for thunderstorms with detailed instructions for the admin.
+
+3. **Bug Fixes**:
+   - Fixed missing parentheses in `bot.edit_message_text` calls in the `/performance` command.
+   - Improved error handling for email sending and radar scanning.
+
+4. **Code Refactoring**:
+   - Organized code into sections for better readability and maintainability.
+   - Improved comments and documentation for better understanding of the code.
 
 ---
+
+# Pi Control Bot with 2FA & Weather Radar
+
+`pi_control_bot.py` is a Python-based Telegram bot designed to provide secure remote control and monitoring of a Raspberry Pi. The bot includes two-factor authentication (2FA) for critical commands, system performance monitoring, and an emergency thunderstorm radar.
 
 ## Features
 
-### 1. **Secure Command Execution with 2FA**
-- Commands such as `reboot`, `shutdown`, and `clear cache` require administrator authentication via a one-time password (OTP) sent to a pre-configured email address.
-- Unauthorized users attempting to execute commands are denied access.
+1. **Two-Factor Authentication (2FA)**:
+   - Secure execution of critical commands (`/reboot`, `/shutdown`, `/clear cache`) using email-based OTP verification.
 
-### 2. **System Performance Monitoring**
-- Provides detailed system performance metrics including:
-  - CPU usage
-  - RAM usage
-  - GPU memory
-  - Temperature
-  - Internet speed (download, upload, ping)
-  - Total system power draw (if supported by Raspberry Pi model)
+2. **System Performance Monitoring**:
+   - Monitor CPU usage, RAM usage, GPU memory, temperature, and power draw.
+   - Perform internet speed tests (download, upload, and ping).
 
-### 3. **Emergency Thunderstorm Radar**
-- Monitors weather conditions using OpenWeatherMap API.
-- Automatically shuts down the Raspberry Pi during thunderstorms to protect hardware.
-- Differentiates between scenarios where the administrator is actively working or at home.
+3. **Thunderstorm Radar**:
+   - Monitors weather conditions using OpenWeatherMap API.
+   - Automatically shuts down the Raspberry Pi during thunderstorms to protect hardware.
+   - Checks if the admin is actively working or at home before initiating shutdown.
 
-### 4. **Background Radar Thread**
-- Continuously scans for weather updates every 15 minutes.
-- Executes emergency shutdown procedures if a thunderstorm is detected.
+4. **Background Radar Thread**:
+   - Continuously monitors weather conditions every 15 minutes.
 
----
-
-## Prerequisites
-
-### Hardware
-- Raspberry Pi (recommended: Raspberry Pi 4 or newer)
-- Internet connection
-- Email account for 2FA
-
-### Software
-- Python 3.x
-- Required Python libraries:
-  - `telebot`
-  - `psutil`
-  - `speedtest`
-  - `subprocess`
-  - `smtplib`
-  - `requests`
-  - `email`
+5. **Admin Authentication**:
+   - Only the admin (specified by `ADMIN_ID`) can interact with the bot.
 
 ---
 
 ## Installation
 
-1. **Clone the Repository**
+### Prerequisites
+- Python 3.6 or higher
+- A Telegram bot token (create one using [BotFather](https://core.telegram.org/bots#botfather))
+- OpenWeatherMap API key (sign up at [OpenWeatherMap](https://openweathermap.org/))
+- A Gmail account with an app password for sending OTP emails
+- Raspberry Pi with `vcgencmd` and `psutil` installed
+
+### Installation Steps
+1. Clone the repository:
    ```bash
    git clone https://github.com/your-repo/Pi_server_control.git
    cd Pi_server_control
    ```
 
-2. **Install Dependencies**
-   Install the required Python libraries:
+2. Install required Python libraries:
    ```bash
    pip install pyTelegramBotAPI psutil speedtest-cli requests
    ```
 
-3. **Configure Credentials**
-   - Open the `pi_control_bot.py` file and update the following variables:
+3. Configure the bot:
+   - Open `pi_control_bot.py` and replace the following placeholders with your credentials:
      - `BOT_TOKEN`: Your Telegram bot token.
      - `ADMIN_ID`: Your Telegram user ID.
-     - `SENDER_EMAIL`: Email address used to send OTPs.
-     - `EMAIL_APP_PASSWORD`: App password for the sender email.
-     - `RECEIVER_EMAIL`: Email address to receive OTPs.
-     - `WEATHER_API_KEY`: API key for OpenWeatherMap.
-     - `PHONE_IP`: Local IP address of your phone (used for radar checks).
-     - `CITY`: City name and country code for weather monitoring (e.g., `Dhaka,BD`).
+     - `SENDER_EMAIL`: Your Gmail address.
+     - `EMAIL_APP_PASSWORD`: Your Gmail app password.
+     - `RECEIVER_EMAIL`: Your email address to receive OTPs.
+     - `WEATHER_API_KEY`: Your OpenWeatherMap API key.
+     - `PHONE_IP`: Your phone's local IP address.
+     - `CITY`: Your city and country code (e.g., `Dhaka,BD`).
 
-4. **Run the Script**
+4. Run the bot:
    ```bash
    python3 pi_control_bot.py
    ```
@@ -85,78 +87,60 @@ The `pi_control_bot.py` script is a powerful tool designed to manage and monitor
 
 ## Usage
 
-### Telegram Commands
-1. **Secure Commands**
-   - `/reboot`: Reboots the Raspberry Pi (requires OTP verification).
-   - `/shutdown`: Shuts down the Raspberry Pi (requires OTP verification).
-   - `/clear cache`: Clears system cache and temporary files (requires OTP verification).
+### Commands
+1. **Secure Commands**:
+   - `/reboot`: Reboot the Raspberry Pi.
+   - `/shutdown`: Shut down the Raspberry Pi.
+   - `/clear cache`: Perform a deep clean of temporary files and caches.
 
-2. **Performance Monitoring**
-   - `/performance`: Displays detailed system performance metrics.
+   **Note**: These commands require OTP verification sent to your email.
 
----
+2. **Performance Monitoring**:
+   - `/performance`: Display system performance metrics, including CPU usage, RAM usage, GPU memory, temperature, power draw, and internet speed.
 
-## Security Features
-
-### Two-Factor Authentication (2FA)
-- OTPs are sent to the administrator's email for secure command execution.
-- OTPs expire after one use or if canceled by the administrator.
-
-### Restricted Access
-- Only the administrator (defined by `ADMIN_ID`) can execute commands or access system data.
+3. **Thunderstorm Radar**:
+   - The radar runs in the background and monitors weather conditions every 15 minutes.
+   - If a thunderstorm is detected:
+     - If the admin is working on the Pi, a warning is sent to save work and unplug manually.
+     - If the admin is at home but not working, an emergency shutdown is initiated with a warning to unplug the adapter.
+     - If the admin is not home, the Pi shuts down to protect hardware.
 
 ---
 
-## Emergency Thunderstorm Radar
+## Security
 
-### Functionality
-- Monitors weather conditions using OpenWeatherMap API.
-- Detects thunderstorms (weather codes 200-232).
-- Executes emergency shutdown procedures to protect the Raspberry Pi during severe weather.
-
-### Scenarios
-1. **Administrator Working on Pi**
-   - Sends a warning message but does not shut down the system.
-2. **Administrator at Home**
-   - Sends a warning message and shuts down the system after a delay.
-3. **Administrator Away**
-   - Sends a warning message and shuts down the system immediately.
+- **Two-Factor Authentication**: Critical commands require a 6-digit OTP sent to the admin's email.
+- **Admin-Only Access**: Only the admin (specified by `ADMIN_ID`) can interact with the bot.
+- **Email Alerts**: Alerts are sent to the admin's email for secure command execution.
 
 ---
 
-## Background Processes
+## Troubleshooting
 
-### Radar Thread
-- Runs continuously in the background to monitor weather conditions.
-- Checks for updates every 15 minutes.
+1. **Email Sending Issues**:
+   - Ensure the Gmail app password is correctly configured.
+   - Verify that "Allow less secure apps" is enabled in your Gmail account settings.
 
-### Telegram Bot
-- Runs in the foreground to handle user commands and interactions.
+2. **Weather API Issues**:
+   - Ensure the OpenWeatherMap API key is valid and correctly configured.
+   - Check your internet connection.
+
+3. **Performance Metrics Errors**:
+   - Ensure `vcgencmd` is installed and accessible on your Raspberry Pi.
+   - Verify that `psutil` and `speedtest-cli` are installed.
+
+4. **Bot Not Responding**:
+   - Check if the bot token is correctly configured.
+   - Ensure the bot is running and connected to the internet.
 
 ---
 
-## Error Handling
+## Contributing
 
-- Email errors during OTP generation are logged and reported to the administrator.
-- Performance monitoring errors are handled gracefully with error messages sent via Telegram.
-- Radar errors are logged for debugging purposes.
-
----
-
-## Notes
-
-- Ensure the Raspberry Pi has proper email and internet configurations for the bot to function correctly.
-- The script uses system-level commands (e.g., `sudo reboot`, `sudo shutdown`). Ensure the bot is run with appropriate permissions.
-- The radar functionality requires an active OpenWeatherMap API key.
+Contributions are welcome! Please fork the repository and submit a pull request with your changes.
 
 ---
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
-
----
-
-## Disclaimer
-
-Use this script at your own risk. The developers are not responsible for any damage caused to your Raspberry Pi or data loss due to improper use of the bot. Always test the script in a controlled environment before deploying it in production.
+This project is licensed under the MIT License. See the `LICENSE` file for details.
