@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# RPI 5 UNIFIED BACKUP PIPELINE v4.5 (DOCKER-AWARE GOVERNOR)
+# RPI 5 UNIFIED BACKUP PIPELINE v5.0 (DOCKER-AWARE GOVERNOR & NVMe OPTIMIZED)
 # ==============================================================================
 
 LOGFILE="/home/redwannabil/master_backup.log"
@@ -20,10 +20,16 @@ NC_SOURCE="/home/redwannabil/nextcloud"
 TOKEN="REDACTED_BY_SYSADMIN"
 CHAT_ID="REDACTED_BY_SYSADMIN"
 
+# --- RCLONE SETTINGS ---
+RCLONE_CONF="/home/redwannabil/.config/rclone/rclone.conf"
+
 # ==============================================================================
 
 send_msg() {
-    curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" -d chat_id="REDACTED_BY_SYSADMIN"
+    curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
+    -d chat_id="REDACTED_BY_SYSADMIN"
+    -d text="$1" \
+    -d parse_mode="Markdown" > /dev/null
 }
 
 # ==============================================================================
@@ -42,14 +48,14 @@ governor_loop() {
 
         if [ "$SPIKE" -eq 1 ] && [ "$PAUSED" -eq 0 ]; then
             sudo pkill -STOP -x "dd" 2>/dev/null
-            sudo pkill -STOP -x "gzip" 2>/dev/null
+            sudo pkill -STOP -x "pigz" 2>/dev/null  # <-- UPDATED: Now pauses pigz instead of gzip
             sudo pkill -STOP -x "tar" 2>/dev/null
             sudo pkill -STOP -x "rclone" 2>/dev/null
             PAUSED=1
             send_msg "⚠️ *Resource Conflict Detected!* Auto-pausing backup to prioritize system tasks (Load: $LOAD)..."
         elif [ "$SAFE" -eq 1 ] && [ "$PAUSED" -eq 1 ]; then
             sudo pkill -CONT -x "dd" 2>/dev/null
-            sudo pkill -CONT -x "gzip" 2>/dev/null
+            sudo pkill -CONT -x "pigz" 2>/dev/null  # <-- UPDATED: Now resumes pigz instead of gzip
             sudo pkill -CONT -x "tar" 2>/dev/null
             sudo pkill -CONT -x "rclone" 2>/dev/null
             PAUSED=0
@@ -72,7 +78,7 @@ echo "======================================================" >> "$LOGFILE"
 echo "$(date '+%Y-%m-%d %H:%M:%S') : --- UNIFIED BACKUP STARTED ---" >> "$LOGFILE"
 send_msg "🚀 *Backup Pipeline Started:* Preparing system..."
 
-# --- STEP 0: PREPARE FOLDERS ---
+# --- STEP 0: PREPARE FOLDERS & CLEANUP ---
 sudo mkdir -p "$OS_DIR" "$HA_DIR" "$NC_DIR"
 
 sudo apt autoremove -y >> "$LOGFILE" 2>&1
@@ -81,16 +87,17 @@ sudo rm -f /tmp/print_*.pdf /tmp/scanned_*.pdf /home/redwannabil/*.pdf >> "$LOGF
 sudo journalctl --vacuum-time=3d >> "$LOGFILE" 2>&1
 sudo sync; echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
 
-# --- STEP 1: THROTTLED OS BACKUP ---
-echo "$(date '+%Y-%m-%d %H:%M:%S') : [1/3] Starting Throttled OS Backup..." >> "$LOGFILE"
+# --- STEP 1: FAST NVMe OS BACKUP ---
+echo "$(date '+%Y-%m-%d %H:%M:%S') : [1/3] Starting Fast NVMe OS Backup..." >> "$LOGFILE"
 OS_FILENAME="Pi_OS_$DATE.img.gz"
 
-sudo sh -c "dd if=/dev/mmcblk0 bs=4M | pv -q -L 8m | gzip > $OS_DIR/$OS_FILENAME" >> "$LOGFILE" 2>&1
+# <-- UPDATED: target is /dev/nvme0n1, pv speed limit increased to 50m, compression changed to pigz, added nice/ionice 
+sudo sh -c "nice -n 19 ionice -c 3 dd if=/dev/nvme0n1 bs=4M | pv -q -L 50m | nice -n 19 pigz > $OS_DIR/$OS_FILENAME" >> "$LOGFILE" 2>&1
 
 if [ $? -eq 0 ]; then
-    send_msg "💽 *Local USB Success:* Pi OS image saved safely!"
+    send_msg "💽 *Local USB Success:* Pi NVMe OS image saved safely!"
 else
-    send_msg "❌ *FATAL ERROR:* Pi OS backup failed!"
+    send_msg "❌ *FATAL ERROR:* Pi NVMe backup failed!"
     exit 1
 fi
 
@@ -117,17 +124,21 @@ fi
 # --- STEP 4: CLOUD UPLOAD (G-DRIVE) ---
 echo "$(date '+%Y-%m-%d %H:%M:%S') : Uploading to Google Drive..." >> "$LOGFILE"
 
-sudo rclone delete --config="/home/redwannabil/.config/rclone/rclone.conf" gdrive:Server_Backups/HA_Backup/ --min-age 48h >> "$LOGFILE" 2>&1
-sudo rclone delete --config="/home/redwannabil/.config/rclone/rclone.conf" gdrive:Server_Backups/NC_Backup/ --min-age 48h >> "$LOGFILE" 2>&1
+# Delete cloud backups older than 48 hours
+sudo rclone delete --config="$RCLONE_CONF" gdrive:Server_Backups/HA_Backup/ --min-age 48h >> "$LOGFILE" 2>&1
+sudo rclone delete --config="$RCLONE_CONF" gdrive:Server_Backups/NC_Backup/ --min-age 48h >> "$LOGFILE" 2>&1
 
-nice -n 19 ionice -c 3 sudo rclone copy --config="/home/redwannabil/.config/rclone/rclone.conf" "$HA_DIR/$HA_FILENAME" gdrive:Server_Backups/HA_Backup/ >> "$LOGFILE" 2>&1
+# Upload fresh backups
+nice -n 19 ionice -c 3 sudo rclone copy --config="$RCLONE_CONF" "$HA_DIR/$HA_FILENAME" gdrive:Server_Backups/HA_Backup/ >> "$LOGFILE" 2>&1
 CLOUD_HA=$?
 
-nice -n 19 ionice -c 3 sudo rclone copy --config="/home/redwannabil/.config/rclone/rclone.conf" "$NC_DIR/$NC_FILENAME" gdrive:Server_Backups/NC_Backup/ >> "$LOGFILE" 2>&1
+nice -n 19 ionice -c 3 sudo rclone copy --config="$RCLONE_CONF" "$NC_DIR/$NC_FILENAME" gdrive:Server_Backups/NC_Backup/ >> "$LOGFILE" 2>&1
 CLOUD_NC=$?
 
 if [ $CLOUD_HA -eq 0 ] && [ $CLOUD_NC -eq 0 ]; then
     send_msg "☁️ *Cloud Sync Success:* HA & Nextcloud safely uploaded!"
+else
+    send_msg "⚠️ *Cloud Sync Warning:* Upload encountered an issue. Check logs."
 fi
 
 # --- STEP 5: LOCAL USB RETENTION ---
