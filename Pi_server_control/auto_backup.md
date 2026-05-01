@@ -1,158 +1,165 @@
 # 🚀 Release Notes
 
-### Version 5.0 Updates
-- **NVMe Optimization**: Backup now targets `/dev/nvme0n1` instead of `/dev/mmcblk0` for faster OS backups.
-- **Compression Tool Update**: Replaced `gzip` with `pigz` for multi-threaded compression.
-- **Throttling Enhancements**: Increased `pv` speed limit from `8m` to `50m` for faster data transfer.
-- **Docker-Aware Governor Improvements**:
-  - Now pauses and resumes `pigz` instead of `gzip`.
-  - Enhanced resource conflict detection and resolution.
-- **Cloud Upload Configuration**: Centralized `rclone` configuration path to a variable for better maintainability.
-- **Retention Policy**: Improved local USB retention logic to clean backups older than 3 days.
-- **System Cleanup**: Added cleanup of temporary PDF files and reduced journal logs to 3 days.
-- **Error Handling**: Improved error handling and notifications for OS and cloud backup failures.
-- **Notifications**: Enhanced Telegram notifications for better clarity and status updates.
+### Changes in `auto_backup.sh` for `Pi_server_control`
+1. **Migration from Bash to Python**:
+   - The script has been completely rewritten in Python, replacing the original Bash implementation.
+   - The new implementation leverages the `telebot` library for Telegram bot integration and Python libraries for system monitoring and email notifications.
+
+2. **Enhanced Security**:
+   - Added a Two-Factor Authentication (2FA) mechanism for critical commands (`reboot`, `shutdown`, `clear cache`) using OTP sent via email.
+   - Only the admin user (identified by `ADMIN_ID`) can execute these commands.
+
+3. **New Features**:
+   - **Network Sync on Boot**: The script waits for an active internet connection before proceeding.
+   - **System Performance Monitoring**: Added a `/performance` command to monitor system metrics such as temperature, CPU usage, RAM usage, GPU memory, power draw, and internet speed.
+   - **Enhanced Shutdown Process**: The shutdown command now includes stopping Docker containers and syncing disks before powering off.
+   - **Deep Cache Cleaning**: The `/clear cache` command now performs a deep clean of temporary files, system logs, and RAM caches.
+
+4. **Improved Logging and Notifications**:
+   - Notifications are sent to the admin via Telegram for critical events such as system boot, command execution, and errors.
+   - Detailed error handling and user feedback for failed operations.
+
+5. **Removed Legacy Features**:
+   - The old Bash-based backup pipeline and resource governor have been removed in favor of the new Python-based implementation.
 
 ---
 
-# Pi Server Control: `auto_backup.sh`
+# Pi Server Control Bot - `auto_backup.sh`
 
 ## Overview
-The `auto_backup.sh` script is a unified backup pipeline designed for Raspberry Pi servers. It automates the backup of the operating system, Home Assistant, and Nextcloud configurations to both local USB storage and Google Drive. The script is optimized for systems using NVMe storage and includes a Docker-aware CPU governor to manage system resources during high-load conditions.
+
+The `auto_backup.sh` script has been updated to a Python-based implementation, providing a robust and secure way to manage and monitor your Raspberry Pi server. The script integrates with Telegram for remote control and notifications, and includes features such as two-factor authentication (2FA), system performance monitoring, and enhanced system management commands.
 
 ---
 
 ## Features
-1. **Automated Backup Pipeline**:
-   - Backs up Raspberry Pi OS, Home Assistant, and Nextcloud configurations.
-   - Supports local USB storage and cloud synchronization with Google Drive.
 
-2. **NVMe Optimization**:
-   - Leverages `/dev/nvme0n1` for faster OS backups.
-   - Uses `pigz` for multi-threaded compression.
+### 1. **Two-Factor Authentication (2FA) for Secure Commands**
+   - Critical commands (`/reboot`, `/shutdown`, `/clear cache`) require a one-time password (OTP) sent to the admin's email.
+   - Only the admin user (identified by `ADMIN_ID`) can execute these commands.
+   - OTPs are valid for a single use and are automatically invalidated after a failed attempt or cancellation.
 
-3. **Docker-Aware CPU Governor**:
-   - Monitors system load and Docker activity.
-   - Pauses and resumes backup processes (`dd`, `pigz`, `tar`, `rclone`) to prioritize system tasks.
+### 2. **Network Sync on Boot**
+   - The script ensures that the Raspberry Pi is connected to the internet before starting the bot.
 
-4. **Cloud Integration**:
-   - Synchronizes backups to Google Drive using `rclone`.
-   - Deletes cloud backups older than 48 hours to save storage.
+### 3. **System Performance Monitoring**
+   - The `/performance` command provides detailed system metrics, including:
+     - CPU usage
+     - RAM usage
+     - GPU memory usage
+     - System temperature
+     - Power draw (if supported by the hardware)
+     - Internet speed (download/upload) and ping
 
-5. **Retention Policy**:
-   - Deletes local USB backups older than 3 days.
+### 4. **Enhanced Shutdown Process**
+   - The `/shutdown` command stops all Docker containers, syncs disks, and safely powers off the Raspberry Pi.
 
-6. **System Cleanup**:
-   - Removes temporary files and reduces journal logs to optimize disk space.
+### 5. **Deep Cache Cleaning**
+   - The `/clear cache` command removes temporary files, cleans system logs, and frees up RAM by dropping caches.
 
-7. **Real-Time Notifications**:
-   - Sends status updates and error notifications via Telegram.
-
----
-
-## Prerequisites
-1. **Hardware**:
-   - Raspberry Pi with NVMe storage.
-   - External USB storage for local backups.
-
-2. **Software**:
-   - `rclone` installed and configured with Google Drive.
-   - `pigz`, `pv`, and `tar` installed.
-   - Telegram bot token and chat ID for notifications.
-
-3. **Permissions**:
-   - Script must be run with `sudo` privileges.
+### 6. **Telegram Notifications**
+   - The bot sends notifications to the admin for:
+     - System boot
+     - Command execution
+     - Errors or issues during execution
 
 ---
 
-## Configuration
-### Variables
-- **Directories**:
-  - `BASE_USB_DIR`: Base directory for USB backups.
-  - `OS_DIR`, `HA_DIR`, `NC_DIR`: Subdirectories for OS, Home Assistant, and Nextcloud backups.
-- **Sources**:
-  - `HA_SOURCE`: Path to Home Assistant configuration.
-  - `NC_SOURCE`: Path to Nextcloud configuration.
-- **Telegram**:
-  - `TOKEN`: Telegram bot token.
-  - `CHAT_ID`: Telegram chat ID.
-- **Rclone**:
-  - `RCLONE_CONF`: Path to `rclone` configuration file.
+## Installation
 
-### Modify the Script
-Update the following variables in the script to match your environment:
-- `BASE_USB_DIR`
-- `HA_SOURCE`
-- `NC_SOURCE`
-- `TOKEN`
-- `CHAT_ID`
-- `RCLONE_CONF`
+### Prerequisites
+1. **Python 3.6+**: Ensure Python is installed on your Raspberry Pi.
+2. **Install Required Python Libraries**:
+   ```bash
+   pip install pyTelegramBotAPI psutil speedtest-cli
+   ```
+3. **Email Configuration**:
+   - Use a Gmail account for sending OTPs.
+   - Enable "Allow less secure apps" in your Gmail account settings or create an App Password if 2FA is enabled.
+
+### Setup
+1. Clone the `Pi_server_control` repository:
+   ```bash
+   git clone https://github.com/your-repo/Pi_server_control.git
+   cd Pi_server_control
+   ```
+2. Update the following credentials in the script:
+   - `BOT_TOKEN`: Your Telegram bot token.
+   - `ADMIN_ID`: Your Telegram user ID.
+   - `SENDER_EMAIL`: The email address used to send OTPs.
+   - `EMAIL_APP_PASSWORD`: The app password for the sender email.
+   - `RECEIVER_EMAIL`: The email address to receive OTPs.
+
+3. Make the script executable:
+   ```bash
+   chmod +x auto_backup.sh
+   ```
+
+4. Run the script:
+   ```bash
+   python3 auto_backup.sh
+   ```
 
 ---
 
 ## Usage
-1. **Run the Script**:
-   ```bash
-   sudo ./auto_backup.sh
-   ```
 
-2. **Automate with Cron**:
-   Add the script to your crontab for periodic execution. For example, to run daily at 2 AM:
-   ```bash
-   0 2 * * * /path/to/auto_backup.sh
-   ```
+### Telegram Commands
+1. **/reboot**: Reboots the Raspberry Pi after OTP verification.
+2. **/shutdown**: Shuts down the Raspberry Pi after stopping Docker containers and syncing disks (requires OTP verification).
+3. **/clear cache**: Performs a deep clean of temporary files, system logs, and RAM caches (requires OTP verification).
+4. **/performance**: Displays system performance metrics.
 
----
-
-## Pipeline Steps
-1. **Preparation**:
-   - Creates necessary directories.
-   - Cleans up temporary files and reduces system logs.
-
-2. **OS Backup**:
-   - Creates a compressed image of the NVMe storage using `dd`, `pv`, and `pigz`.
-
-3. **Home Assistant Backup**:
-   - Archives the Home Assistant configuration directory.
-
-4. **Nextcloud Backup**:
-   - Archives the Nextcloud configuration directory, excluding `data` files.
-
-5. **Cloud Upload**:
-   - Deletes cloud backups older than 48 hours.
-   - Uploads fresh backups to Google Drive.
-
-6. **Retention**:
-   - Deletes local USB backups older than 3 days.
+### OTP Verification
+- After sending a secure command, the bot will generate a 6-digit OTP and send it to the admin's email.
+- Reply to the bot with the OTP to confirm the command.
+- To cancel the command, reply with `cancel`.
 
 ---
 
 ## Error Handling
-- **OS Backup Failure**:
-  - Sends a Telegram notification and exits the script.
-- **Cloud Upload Issues**:
-  - Sends a warning notification if any upload fails.
+- The bot provides detailed error messages for failed operations.
+- If the email fails to send, the bot will notify the admin and the command will not proceed.
 
 ---
 
-## Logs
-- Logs are stored in `/home/redwannabil/master_backup.log`.
-- Includes timestamps and detailed output of each step.
+## Security
+- The bot is designed to be used by a single admin user, identified by `ADMIN_ID`.
+- All critical commands are protected by a 2FA mechanism using OTPs sent via email.
+- Ensure that your email credentials and bot token are kept secure and not shared.
 
 ---
 
 ## Known Issues
-- Ensure sufficient storage space is available on both the USB drive and Google Drive.
-- Verify `rclone` configuration and permissions for Google Drive.
+1. **Performance Monitoring**:
+   - Power draw calculation may not be available on all Raspberry Pi models.
+   - Internet speed test may take up to 20 seconds to complete.
+
+2. **Email Delivery**:
+   - Ensure that the sender email account is properly configured to allow sending emails via SMTP.
+
+3. **Error Handling**:
+   - Some error messages may not provide detailed information. Future updates will improve error reporting.
 
 ---
 
 ## Future Improvements
-- Add support for incremental backups.
-- Include monitoring for additional system resources (e.g., memory usage).
-- Extend cloud support to other providers (e.g., AWS S3, Dropbox).
+1. Add support for multiple admin users.
+2. Implement logging to a file for better debugging and audit trails.
+3. Enhance the `/performance` command to include additional metrics.
+4. Add support for more email providers beyond Gmail.
 
 ---
 
 ## License
-This script is provided under the MIT License. Use at your own risk.
+This project is licensed under the MIT License. See the LICENSE file for details.
+
+---
+
+## Contributing
+Contributions are welcome! Please fork the repository and submit a pull request with your changes. For major changes, please open an issue first to discuss what you would like to change.
+
+---
+
+## Contact
+For questions or support, please contact [Nabil Redwoan](mailto:nabilredwoan2005@gmail.com).

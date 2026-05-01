@@ -1,153 +1,187 @@
-#!/bin/bash
+import telebot
+import psutil
+import speedtest
+import subprocess
+import os
+import smtplib
+import random
+import string
+import socket
+import time
+from email.message import EmailMessage
 
-# ==============================================================================
-# RPI 5 UNIFIED BACKUP PIPELINE v5.0 (DOCKER-AWARE GOVERNOR & NVMe OPTIMIZED)
-# ==============================================================================
+# --- 1. CREDENTIALS & CONFIGURATION ---
+BOT_TOKEN = "REDACTED_BY_SYSADMIN"
+ADMIN_ID = 1435882929
 
-LOGFILE="/home/redwannabil/master_backup.log"
-DATE=$(date +"%Y-%m-%d_%H-%M")
+# Email Config
+SENDER_EMAIL = "nabilredwoan2005@gmail.com"      
+EMAIL_APP_PASSWORD = "REDACTED_BY_SYSADMIN"
+RECEIVER_EMAIL = "redwannabil116@gmail.com"    
 
-# --- DIRECTORIES ---
-BASE_USB_DIR="/mnt/usb_backup/server_backup"
-OS_DIR="$BASE_USB_DIR/RPI_OS_backup"
-HA_DIR="$BASE_USB_DIR/HA_Backup"
-NC_DIR="$BASE_USB_DIR/Nextcloud_Admin_backup"
+bot = telebot.TeleBot(BOT_TOKEN)
+pending_auth = {} 
 
-HA_SOURCE="/home/redwannabil/homeassistant"
-NC_SOURCE="/home/redwannabil/nextcloud"
+# --- 2. NETWORK SYNC (Wait for Internet on Boot) ---
+def wait_for_internet():
+    """Pauses the script on boot until the network is fully connected."""
+    print("Checking for internet connection...")
+    while True:
+        try:
+            # Try to connect to Telegram's servers
+            socket.create_connection(("api.telegram.org", 443), timeout=5)
+            print("Internet connected!")
+            break
+        except OSError:
+            print("Network not ready. Retrying in 5 seconds...")
+            time.sleep(5)
 
-# --- TELEGRAM SETTINGS ---
-TOKEN="REDACTED_BY_SYSADMIN"
-CHAT_ID="REDACTED_BY_SYSADMIN"
+# --- 3. 2FA EMAIL FUNCTION ---
+def send_otp_email(otp, command):
+    msg = EmailMessage()
+    msg.set_content(f"Security Alert: A '{command}' command was triggered on your Raspberry Pi.\nYour 6-digit authorization code is: {otp}\n\nIf you did not request this, someone is trying to access your bot!")
+    msg['Subject'] = f"Security Alert: A '{command}' command was triggered on your Raspberry Pi."
+    msg['From'] = SENDER_EMAIL
+    msg['To'] = RECEIVER_EMAIL
 
-# --- RCLONE SETTINGS ---
-RCLONE_CONF="/home/redwannabil/.config/rclone/rclone.conf"
+    try:
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        server.login(SENDER_EMAIL, EMAIL_APP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Email error: {e}")
+        return False
 
-# ==============================================================================
+# --- 4. SYSTEM SECURE COMMANDS ---
+@bot.message_handler(commands=['reboot', 'shutdown', 'clear'])
+def request_secure_command(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.reply_to(message, "⛔ Access Denied.")
+        return
 
-send_msg() {
-    curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-    -d chat_id="REDACTED_BY_SYSADMIN"
-    -d text="$1" \
-    -d parse_mode="Markdown" > /dev/null
-}
+    if message.text.startswith('/clear'):
+        if message.text.strip().lower() != '/clear cache':
+            bot.send_message(message.chat.id, "⚠️ Invalid command. Did you mean '/clear cache'?")
+            return
+        command = "clear cache"
+    else:
+        command = message.text.replace('/', '')
+    
+    otp = ''.join(random.choices(string.digits, k=6))
+    bot.send_message(ADMIN_ID, f"🔒 Security lock engaged. Generating one-time password for '{command}'...")
+    
+    if send_otp_email(otp, command):
+        pending_auth[ADMIN_ID] = {'command': command, 'otp': otp}
+        bot.send_message(ADMIN_ID, "📧 The code has been sent to your email! Please reply to me with the 6-digit code to confirm, or type 'cancel'.")
+    else:
+        bot.send_message(ADMIN_ID, "❌ Failed to send email. Check your email credentials.")
 
-# ==============================================================================
-# 🧠 THE CPU GOVERNOR (Docker-Aware)
-# ==============================================================================
-governor_loop() {
-    local PAUSED=0
-    while true; do
-        LOAD=$(cat /proc/loadavg | awk '{print $1}')
+@bot.message_handler(func=lambda message: message.from_user.id == ADMIN_ID and ADMIN_ID in pending_auth)
+def verify_otp(message):
+    auth_data = pending_auth[ADMIN_ID]
+    user_input = message.text.strip()
+    command = auth_data['command']
+
+    if user_input.lower() == 'cancel':
+        bot.reply_to(message, "✅ Action cancelled. Server remains online.")
+        del pending_auth[ADMIN_ID]
         
-        # Only look for active, aggressive docker commands
-        DOCKER_BUSY=$(pgrep -f "docker compose|docker build|docker run" > /dev/null && echo 1 || echo 0)
+    elif user_input == auth_data['otp']:
+        bot.reply_to(message, f"✅ Security code verified! Executing {command}...")
+        del pending_auth[ADMIN_ID] 
+        
+        if command == "reboot":
+            os.system("sudo reboot")
+            
+        elif command == "shutdown":
+            # Aggressive but safe shutdown sequence for NAS/CCTV
+            bot.send_message(ADMIN_ID, "🛑 Shutting down Docker containers and syncing disks...")
+            os.system("sudo systemctl stop docker") # Stop all heavy apps safely
+            os.system("sudo sync")                  # Flush RAM to hard drives
+            bot.send_message(ADMIN_ID, "🔌 Powering off now.")
+            os.system("sudo shutdown -h now")       # Execute instant shutdown
+            
+        elif command == "clear cache":
+            try:
+                os.system("sudo rm -f /tmp/print_*.pdf /tmp/scanned_*.pdf /home/redwannabil/*.pdf")
+                os.system("sudo journalctl --vacuum-time=1d")
+                os.system("sudo apt-get clean")
+                os.system("sudo sync; echo 3 | sudo tee /proc/sys/vm/drop_caches")
+                bot.send_message(message.chat.id, "✅ Deep clean complete! RAM and Storage freed.")
+            except Exception as e:
+                bot.send_message(message.chat.id, f"❌ Error during cleanup: {e}")
+            
+    else:
+        bot.reply_to(message, "❌ INCORRECT CODE. Authorization failed.")
+        del pending_auth[ADMIN_ID]
 
-        SPIKE=$(awk -v load="$LOAD" -v dbusy="$DOCKER_BUSY" 'BEGIN {if (load > 3.0 || dbusy == 1) print 1; else print 0}')
-        SAFE=$(awk -v load="$LOAD" -v dbusy="$DOCKER_BUSY" 'BEGIN {if (load < 1.5 && dbusy == 0) print 1; else print 0}')
+# --- 5. SYSTEM PERFORMANCE ---
+@bot.message_handler(commands=['performance'])
+def check_performance(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    status_msg = bot.reply_to(message, "🔄 Analyzing system performance... (Please wait ~20 seconds)")
+    try:
+        temp = subprocess.check_output(['vcgencmd', 'measure_temp']).decode('utf-8').replace('temp=', '').strip()
+        cpu_usage = psutil.cpu_percent(interval=1)
+        ram_usage = psutil.virtual_memory().percent
+        gpu_mem = subprocess.check_output(['vcgencmd', 'get_mem', 'gpu']).decode('utf-8').replace('gpu=', '').strip()
+        
+        # Calculate Total System Power Draw (Pi 5 PMIC Linear Correction)
+        try:
+            pmic_out = subprocess.check_output(['vcgencmd', 'pmic_read_adc']).decode('utf-8')
+            currents = {}
+            volts = {}
+            for line in pmic_out.strip().split('\n'):
+                if 'current' in line:
+                    parts = line.split()
+                    name = parts[0].replace('_A', '')
+                    val = float(parts[1].split('=')[1].replace('A', ''))
+                    currents[name] = val
+                elif 'volt' in line:
+                    parts = line.split()
+                    name = parts[0].replace('_V', '')
+                    val = float(parts[1].split('=')[1].replace('V', ''))
+                    volts[name] = val
+            pmic_power = sum(currents[name] * volts[name] for name in currents if name in volts)
+            total_power_watts = (pmic_power * 1.1451) + 0.5879
+            power_str = f"{total_power_watts:.2f} W (Total System)"
+        except Exception:
+            power_str = "Unavailable"
 
-        if [ "$SPIKE" -eq 1 ] && [ "$PAUSED" -eq 0 ]; then
-            sudo pkill -STOP -x "dd" 2>/dev/null
-            sudo pkill -STOP -x "pigz" 2>/dev/null  # <-- UPDATED: Now pauses pigz instead of gzip
-            sudo pkill -STOP -x "tar" 2>/dev/null
-            sudo pkill -STOP -x "rclone" 2>/dev/null
-            PAUSED=1
-            send_msg "⚠️ *Resource Conflict Detected!* Auto-pausing backup to prioritize system tasks (Load: $LOAD)..."
-        elif [ "$SAFE" -eq 1 ] && [ "$PAUSED" -eq 1 ]; then
-            sudo pkill -CONT -x "dd" 2>/dev/null
-            sudo pkill -CONT -x "pigz" 2>/dev/null  # <-- UPDATED: Now resumes pigz instead of gzip
-            sudo pkill -CONT -x "tar" 2>/dev/null
-            sudo pkill -CONT -x "rclone" 2>/dev/null
-            PAUSED=0
-            send_msg "✅ *Resources Freed.* Resuming backup pipeline (Load: $LOAD)."
-        fi
-        sleep 10
-    done
-}
+        st = speedtest.Speedtest(secure=True)
+        st.get_best_server()
+        download_speed = st.download() / 1_000_000 
+        upload_speed = st.upload() / 1_000_000  
+        ping = st.results.ping
 
-# Start the Governor and make sure it dies when the script finishes
-governor_loop &
-GOVERNOR_PID=$!
-trap "kill $GOVERNOR_PID 2>/dev/null" EXIT
+        perf_text = (
+            f"📊 *Raspberry Pi Performance:*\n\n"
+            f"🌡️ *Temperature:* {temp}\n"
+            f"⚡ *Power Draw:* {power_str}\n"
+            f"🧠 *CPU Usage:* {cpu_usage}%\n"
+            f"💾 *RAM Usage:* {ram_usage}%\n"
+            f"🎮 *GPU Memory:* {gpu_mem}\n\n"
+            f"🌐 *Internet Speed:*\n"
+            f"⬇️ Download: {download_speed:.2f} Mbps\n"
+            f"⬆️ Upload: {upload_speed:.2f} Mbps\n"
+            f"🏓 Ping: {ping:.1f} ms"
+        )
+        bot.edit_message_text(perf_text, chat_id="REDACTED_BY_SYSADMIN"
+    except Exception as e:
+        bot.edit_message_text(f"❌ Error fetching performance data: {e}", chat_id="REDACTED_BY_SYSADMIN"
 
-# ==============================================================================
-# PIPELINE EXECUTION
-# ==============================================================================
-
-echo "======================================================" >> "$LOGFILE"
-echo "$(date '+%Y-%m-%d %H:%M:%S') : --- UNIFIED BACKUP STARTED ---" >> "$LOGFILE"
-send_msg "🚀 *Backup Pipeline Started:* Preparing system..."
-
-# --- STEP 0: PREPARE FOLDERS & CLEANUP ---
-sudo mkdir -p "$OS_DIR" "$HA_DIR" "$NC_DIR"
-
-sudo apt autoremove -y >> "$LOGFILE" 2>&1
-sudo apt clean >> "$LOGFILE" 2>&1
-sudo rm -f /tmp/print_*.pdf /tmp/scanned_*.pdf /home/redwannabil/*.pdf >> "$LOGFILE" 2>&1
-sudo journalctl --vacuum-time=3d >> "$LOGFILE" 2>&1
-sudo sync; echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
-
-# --- STEP 1: FAST NVMe OS BACKUP ---
-echo "$(date '+%Y-%m-%d %H:%M:%S') : [1/3] Starting Fast NVMe OS Backup..." >> "$LOGFILE"
-OS_FILENAME="Pi_OS_$DATE.img.gz"
-
-# <-- UPDATED: target is /dev/nvme0n1, pv speed limit increased to 50m, compression changed to pigz, added nice/ionice 
-sudo sh -c "nice -n 19 ionice -c 3 dd if=/dev/nvme0n1 bs=4M | pv -q -L 50m | nice -n 19 pigz > $OS_DIR/$OS_FILENAME" >> "$LOGFILE" 2>&1
-
-if [ $? -eq 0 ]; then
-    send_msg "💽 *Local USB Success:* Pi NVMe OS image saved safely!"
-else
-    send_msg "❌ *FATAL ERROR:* Pi NVMe backup failed!"
-    exit 1
-fi
-
-# --- STEP 2: HOME ASSISTANT BACKUP ---
-echo "$(date '+%Y-%m-%d %H:%M:%S') : [2/3] Starting Home Assistant Backup..." >> "$LOGFILE"
-HA_FILENAME="HA_Backup_$DATE.tar.gz"
-
-sudo tar -czvf "$HA_DIR/$HA_FILENAME" "$HA_SOURCE" >> "$LOGFILE" 2>&1
-if [ $? -eq 0 ] || [ $? -eq 1 ]; then
-    send_msg "💽 *Local USB Success:* Home Assistant saved!"
-else
-    send_msg "⚠️ *Warning:* Home Assistant local backup failed!"
-fi
-
-# --- STEP 3: NEXTCLOUD ADMIN BACKUP ---
-echo "$(date '+%Y-%m-%d %H:%M:%S') : [3/3] Starting Nextcloud Settings Backup..." >> "$LOGFILE"
-NC_FILENAME="Nextcloud_Admin_$DATE.tar.gz"
-
-sudo tar --exclude='*/data/*' -czvf "$NC_DIR/$NC_FILENAME" "$NC_SOURCE" >> "$LOGFILE" 2>&1
-if [ $? -eq 0 ] || [ $? -eq 1 ]; then
-    send_msg "💽 *Local USB Success:* Nextcloud Admin saved!"
-fi
-
-# --- STEP 4: CLOUD UPLOAD (G-DRIVE) ---
-echo "$(date '+%Y-%m-%d %H:%M:%S') : Uploading to Google Drive..." >> "$LOGFILE"
-
-# Delete cloud backups older than 48 hours
-sudo rclone delete --config="$RCLONE_CONF" gdrive:Server_Backups/HA_Backup/ --min-age 48h >> "$LOGFILE" 2>&1
-sudo rclone delete --config="$RCLONE_CONF" gdrive:Server_Backups/NC_Backup/ --min-age 48h >> "$LOGFILE" 2>&1
-
-# Upload fresh backups
-nice -n 19 ionice -c 3 sudo rclone copy --config="$RCLONE_CONF" "$HA_DIR/$HA_FILENAME" gdrive:Server_Backups/HA_Backup/ >> "$LOGFILE" 2>&1
-CLOUD_HA=$?
-
-nice -n 19 ionice -c 3 sudo rclone copy --config="$RCLONE_CONF" "$NC_DIR/$NC_FILENAME" gdrive:Server_Backups/NC_Backup/ >> "$LOGFILE" 2>&1
-CLOUD_NC=$?
-
-if [ $CLOUD_HA -eq 0 ] && [ $CLOUD_NC -eq 0 ]; then
-    send_msg "☁️ *Cloud Sync Success:* HA & Nextcloud safely uploaded!"
-else
-    send_msg "⚠️ *Cloud Sync Warning:* Upload encountered an issue. Check logs."
-fi
-
-# --- STEP 5: LOCAL USB RETENTION ---
-echo "$(date '+%Y-%m-%d %H:%M:%S') : Cleaning old local USB backups..." >> "$LOGFILE"
-sudo find "$OS_DIR" -name "*.img.gz" -type f -mtime +3 -delete >> "$LOGFILE" 2>&1
-sudo find "$HA_DIR" -name "*.tar.gz" -type f -mtime +3 -delete >> "$LOGFILE" 2>&1
-sudo find "$NC_DIR" -name "*.tar.gz" -type f -mtime +3 -delete >> "$LOGFILE" 2>&1
-
-send_msg "🏁 *PIPELINE COMPLETE:* All automated backup tasks finished safely."
-echo "$(date '+%Y-%m-%d %H:%M:%S') : --- PIPELINE FINISHED SUCCESSFULLY ---" >> "$LOGFILE"
-
-exit 0
+# --- 6. STARTUP SEQUENCE ---
+if __name__ == "__main__":
+    wait_for_internet() # Halts execution until Wi-Fi/Ethernet connects
+    
+    # Send the boot message directly to your phone
+    try:
+        bot.send_message(ADMIN_ID, "🚀 *System Online:* Raspberry Pi has successfully booted and the Control Bot is ready.", parse_mode="Markdown")
+    except Exception as e:
+        print(f"Failed to send boot message: {e}")
+        
+    print("⚙️ Pi Admin Control Bot is running...")
+    bot.infinity_polling()
