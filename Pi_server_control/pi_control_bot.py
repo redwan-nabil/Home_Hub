@@ -6,9 +6,8 @@ import os
 import smtplib
 import random
 import string
-import requests
+import socket
 import time
-import threading
 from email.message import EmailMessage
 
 # --- 1. CREDENTIALS & CONFIGURATION ---
@@ -20,17 +19,24 @@ SENDER_EMAIL = "nabilredwoan2005@gmail.com"
 EMAIL_APP_PASSWORD = "REDACTED_BY_SYSADMIN"
 RECEIVER_EMAIL = "redwannabil116@gmail.com"    
 
-# Weather & Radar Config
-WEATHER_API_KEY = "REDACTED_BY_SYSADMIN"
-PHONE_IP = "192.168.0.117"  # My phone's Wi-Fi IP
-CITY = "Dhaka,BD"
-
 bot = telebot.TeleBot(BOT_TOKEN)
 pending_auth = {} 
 
-print("⚙️ Pi Admin Control Bot with 2FA & Weather Radar is running...")
+# --- 2. NETWORK SYNC (Wait for Internet on Boot) ---
+def wait_for_internet():
+    """Pauses the script on boot until the network is fully connected."""
+    print("Checking for internet connection...")
+    while True:
+        try:
+            # Try to connect to Telegram's servers
+            socket.create_connection(("api.telegram.org", 443), timeout=5)
+            print("Internet connected!")
+            break
+        except OSError:
+            print("Network not ready. Retrying in 5 seconds...")
+            time.sleep(5)
 
-# --- 2. 2FA EMAIL FUNCTION ---
+# --- 3. 2FA EMAIL FUNCTION ---
 def send_otp_email(otp, command):
     msg = EmailMessage()
     msg.set_content(f"Security Alert: A '{command}' command was triggered on your Raspberry Pi.\nYour 6-digit authorization code is: {otp}\n\nIf you did not request this, someone is trying to access your bot!")
@@ -48,7 +54,7 @@ def send_otp_email(otp, command):
         print(f"Email error: {e}")
         return False
 
-# --- 3. SYSTEM SECURE COMMANDS ---
+# --- 4. SYSTEM SECURE COMMANDS ---
 @bot.message_handler(commands=['reboot', 'shutdown', 'clear'])
 def request_secure_command(message):
     if message.from_user.id != ADMIN_ID:
@@ -88,15 +94,22 @@ def verify_otp(message):
         
         if command == "reboot":
             os.system("sudo reboot")
+            
         elif command == "shutdown":
-            os.system("sudo shutdown -h now")
+            # Aggressive but safe shutdown sequence for NAS/CCTV
+            bot.send_message(ADMIN_ID, "🛑 Shutting down Docker containers and syncing disks...")
+            os.system("sudo systemctl stop docker") # Stop all heavy apps safely
+            os.system("sudo sync")                  # Flush RAM to hard drives
+            bot.send_message(ADMIN_ID, "🔌 Powering off now.")
+            os.system("sudo shutdown -h now")       # Execute instant shutdown
+            
         elif command == "clear cache":
             try:
                 os.system("sudo rm -f /tmp/print_*.pdf /tmp/scanned_*.pdf /home/redwannabil/*.pdf")
                 os.system("sudo journalctl --vacuum-time=1d")
                 os.system("sudo apt-get clean")
                 os.system("sudo sync; echo 3 | sudo tee /proc/sys/vm/drop_caches")
-                bot.send_message(message.chat.id, "✅ Deep clean complete!")
+                bot.send_message(message.chat.id, "✅ Deep clean complete! RAM and Storage freed.")
             except Exception as e:
                 bot.send_message(message.chat.id, f"❌ Error during cleanup: {e}")
             
@@ -104,7 +117,7 @@ def verify_otp(message):
         bot.reply_to(message, "❌ INCORRECT CODE. Authorization failed.")
         del pending_auth[ADMIN_ID]
 
-# --- 4. SYSTEM PERFORMANCE ---
+# --- 5. SYSTEM PERFORMANCE ---
 @bot.message_handler(commands=['performance'])
 def check_performance(message):
     if message.from_user.id != ADMIN_ID:
@@ -121,8 +134,6 @@ def check_performance(message):
             pmic_out = subprocess.check_output(['vcgencmd', 'pmic_read_adc']).decode('utf-8')
             currents = {}
             volts = {}
-            
-            # Parse all the Volts and Amps from the PMIC output
             for line in pmic_out.strip().split('\n'):
                 if 'current' in line:
                     parts = line.split()
@@ -134,11 +145,7 @@ def check_performance(message):
                     name = parts[0].replace('_V', '')
                     val = float(parts[1].split('=')[1].replace('V', ''))
                     volts[name] = val
-            
-            # Calculate the total wattage of all 12 measurable branches
             pmic_power = sum(currents[name] * volts[name] for name in currents if name in volts)
-            
-            # Apply community standard linear correction for the unmeasured 5V rail
             total_power_watts = (pmic_power * 1.1451) + 0.5879
             power_str = f"{total_power_watts:.2f} W (Total System)"
         except Exception:
@@ -166,56 +173,15 @@ def check_performance(message):
     except Exception as e:
         bot.edit_message_text(f"❌ Error fetching performance data: {e}", chat_id="REDACTED_BY_SYSADMIN"
 
-# --- 5. EMERGENCY THUNDERSTORM RADAR (BACKGROUND THREAD) ---
-def is_admin_working():
-    try:
-        output = subprocess.check_output("who", shell=True).decode('utf-8')
-        return "redwannabil" in output
-    except:
-        return False
-
-def is_admin_home():
-    try:
-        subprocess.check_output(f"ping -c 2 -W 2 {PHONE_IP}", shell=True)
-        return True
-    except subprocess.CalledProcessError:
-        return False
-
-def radar_scan_loop():
-    print("📡 Background Radar Thread Started!")
-    while True:
-        url = f"http://api.openweathermap.org/data/2.5/weather?q={CITY}&appid={WEATHER_API_KEY}"
-        try:
-            response = requests.get(url).json()
-            weather_id = response['weather'][0]['id']
-
-            # Codes 200-232 are Thunderstorms
-            if 200 <= weather_id <= 232:
-                if is_admin_working():
-                    bot.send_message(ADMIN_ID, "⚠️ THUNDERSTORM DETECTED! You are actively working on the Pi, so I am aborting auto-shutdown. Please save your work and unplug manually!")
-                else:
-                    if is_admin_home():
-                        bot.send_message(ADMIN_ID, "🚨 THUNDERSTORM_ALARM 🚨")
-                        bot.send_message(ADMIN_ID, "⚡ HEAVY DANGER! Thunderstorm overhead. I am executing an emergency shutdown. UNPLUG THE ADAPTER IN 30 SECONDS!")
-                    else:
-                        bot.send_message(ADMIN_ID, "🚨 THUNDERSTORM_ALARM 🚨")
-                        bot.send_message(ADMIN_ID, "⚡ Storm approaching! You are not home. I am shutting down to protect the drives. Someone needs to physically UNPLUG THE ADAPTER!")
-                    
-                    time.sleep(5)
-                    subprocess.call("sudo systemctl stop docker", shell=True)
-                    time.sleep(5)
-                    subprocess.call("sudo shutdown -h now", shell=True)
-        except Exception as e:
-            print(f"Radar error: {e}")
-            
-        # Wait 15 minutes (900 seconds) before checking the sky again
-        time.sleep(900)
-
-# --- 6. START THE BOT AND THE RADAR ---
+# --- 6. STARTUP SEQUENCE ---
 if __name__ == "__main__":
-    # Start the Radar in the background
-    radar_thread = threading.Thread(target=radar_scan_loop, daemon=True)
-    radar_thread.start()
+    wait_for_internet() # Halts execution until Wi-Fi/Ethernet connects
     
-    # Start the Telegram Bot in the foreground
+    # Send the boot message directly to your phone
+    try:
+        bot.send_message(ADMIN_ID, "🚀 *System Online:* Raspberry Pi has successfully booted and the Control Bot is ready.", parse_mode="Markdown")
+    except Exception as e:
+        print(f"Failed to send boot message: {e}")
+        
+    print("⚙️ Pi Admin Control Bot is running...")
     bot.infinity_polling()
