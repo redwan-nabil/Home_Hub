@@ -1,4 +1,4 @@
-# For more options and information see
+/boot/firmware/config.txt# For more options and information see
 # http://rptl.io/configtxt
 # Some settings may impact device functionality. See link above for details
 
@@ -63,3 +63,6 @@ dmi_enable_4kp60=1
 
 #--- Maximum USB power ---
 usb_max_current_enable=1
+
+dtparam=pciex1
+dtparam=pciex1_gen=3

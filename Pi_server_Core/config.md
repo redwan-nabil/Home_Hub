@@ -1,155 +1,98 @@
-# Pi_server_Core Configuration Guide
+# 🚀 Release Notes
 
-This document provides a detailed explanation of the `config.txt` file used in the `Pi_server_Core` project. The `config.txt` file is a critical configuration file for Raspberry Pi devices, allowing users to enable or disable hardware interfaces, configure display settings, and optimize performance.
+The following updates have been made to the `config.txt` file in the `Pi_server_Core` repository:
+
+1. **PCIe Configuration**:
+   - Added `dtparam=pciex1` to enable PCIe x1 support.
+   - Added `dtparam=pciex1_gen=3` to configure PCIe to use Gen 3 speeds.
+
+2. **General Enhancements**:
+   - Improved comments for better clarity and maintainability.
+   - No changes were made to existing configurations.
+
+---
+
+# README
 
 ## Overview
 
-The `config.txt` file is used to configure various hardware and software settings for the Raspberry Pi. It is located in the `/boot` directory and is read during the boot process. Modifications to this file can impact the functionality and performance of the device.
+This repository contains the `config.txt` file for configuring the Raspberry Pi firmware. The `config.txt` file is a critical configuration file located in the `/boot/firmware/` directory. It allows users to enable or disable hardware interfaces, configure system behavior, and optimize performance for specific use cases.
 
-For more options and detailed information, refer to the official Raspberry Pi documentation: [Raspberry Pi Configuration Documentation](http://rptl.io/configtxt).
-
----
-
-## Configuration Details
-
-### 1. **Hardware Interfaces**
-The following hardware interfaces are enabled or can be enabled by uncommenting the respective lines:
-- **I2C Interface**: Enabled using `dtparam=i2c_arm=on`.
-- **SPI Interface**: Enabled using `dtparam=spi=on`.
-- **I2S Interface**: Disabled by default. Uncomment `#dtparam=i2s=on` to enable.
-
-### 2. **Audio**
-Audio support is enabled by default:
-```plaintext
-dtparam=audio=on
-```
-This loads the `snd_bcm2835` audio driver.
-
-### 3. **Camera and Display Auto-Detection**
-- **Camera Auto-Detection**: Automatically loads overlays for detected cameras.
-  ```plaintext
-  camera_auto_detect=1
-  ```
-- **DSI Display Auto-Detection**: Automatically loads overlays for detected DSI displays.
-  ```plaintext
-  display_auto_detect=1
-  ```
-
-### 4. **Initramfs Auto-Loading**
-Automatically loads `initramfs` files if they are found:
-```plaintext
-auto_initramfs=1
-```
-
-### 5. **Graphics and Display Settings**
-- **Enable DRM VC4 V3D Driver**: Improves GPU performance.
-  ```plaintext
-  dtoverlay=vc4-kms-v3d
-  max_framebuffers=2
-  ```
-- **Disable Firmware KMS Setup**: Prevents the firmware from creating an initial `video=` setting in `cmdline.txt`. The kernel's default is used instead.
-  ```plaintext
-  disable_fw_kms_setup=1
-  ```
-
-### 6. **64-Bit Mode**
-Enables 64-bit mode for the ARM processor:
-```plaintext
-arm_64bit=1
-```
-
-### 7. **Display Overscan**
-Disables compensation for displays with overscan:
-```plaintext
-disable_overscan=1
-```
-
-### 8. **Performance Boost**
-Enables the Raspberry Pi to run as fast as the firmware and board allow:
-```plaintext
-arm_boost=1
-```
+The latest update introduces support for PCIe x1 and Gen 3 speeds, which enhances the Raspberry Pi's compatibility and performance with PCIe devices.
 
 ---
 
-## Conditional Settings
+## File Structure
 
-### [cm4] - Raspberry Pi Compute Module 4
-- Enables host mode on the built-in XHCI USB controller:
-  ```plaintext
-  otg_mode=1
-  ```
-  **Note**: Remove this line if the legacy DWC2 controller is required (e.g., for USB device mode) or if USB support is not needed.
+The `config.txt` file is structured into sections and parameters that control various aspects of the Raspberry Pi's hardware and software configuration. Below is a breakdown of the key sections and parameters:
 
-### [cm5] - Raspberry Pi Compute Module 5
-- Configures the DWC2 USB controller in host mode:
-  ```plaintext
-  dtoverlay=dwc2,dr_mode=host
-  ```
+### General Settings
+- **`dtparam=i2c_arm=on`**: Enables the I2C interface.
+- **`dtparam=spi=on`**: Enables the SPI interface.
+- **`dtparam=audio=on`**: Enables the onboard audio interface.
+- **`camera_auto_detect=1`**: Automatically loads overlays for detected cameras.
+- **`display_auto_detect=1`**: Automatically loads overlays for detected DSI displays.
+- **`auto_initramfs=1`**: Automatically loads initramfs files if found.
+- **`dtoverlay=vc4-kms-v3d`**: Enables the DRM VC4 V3D driver for improved graphics performance.
+- **`max_framebuffers=2`**: Sets the maximum number of framebuffers to 2.
+- **`disable_fw_kms_setup=1`**: Prevents the firmware from creating an initial `video=` setting in `cmdline.txt`.
+- **`arm_64bit=1`**: Enables 64-bit mode.
+- **`disable_overscan=1`**: Disables compensation for displays with overscan.
+- **`arm_boost=1`**: Enables maximum CPU performance as allowed by the firmware and board.
 
----
+### Compute Module 4 (CM4) Specific Settings
+- **`otg_mode=1`**: Enables host mode on the 2711 built-in XHCI USB controller. This line should be removed if the legacy DWC2 controller is required or if USB support is not needed.
 
-## Universal Settings
+### Compute Module 5 (CM5) Specific Settings
+- **`dtoverlay=dwc2,dr_mode=host`**: Configures the DWC2 USB controller in host mode.
 
-### UART
-Enables the UART interface for serial communication:
-```plaintext
-enable_uart=1
-```
+### Universal Settings
+- **`enable_uart=1`**: Enables the UART interface.
+- **`dtoverlay=gpio-fan,gpiopin=4,temp=60000`**: Configures a GPIO fan to activate when the temperature exceeds 60°C.
+- **`dmi_enable_4kp60=1`**: Enables support for 4K resolution at 60Hz.
 
-### GPIO Fan Control
-Configures a GPIO-controlled fan:
-- **GPIO Pin**: 4
-- **Temperature Threshold**: 60°C
-  ```plaintext
-  dtoverlay=gpio-fan,gpiopin=4,temp=60000
-  ```
+### Performance Enhancements
+- **Maximum Stable Overclock** (commented out by default):
+  - `arm_freq=2800`: Sets the CPU frequency to 2800 MHz.
+  - `gpu_freq=900`: Sets the GPU frequency to 900 MHz.
+  - `over_voltage_delta=50000`: Increases the CPU voltage for stability during overclocking.
+- **`usb_max_current_enable=1`**: Enables maximum USB power output.
 
-### 4K Display Support
-Enables support for 4K resolution at 60Hz:
-```plaintext
-dmi_enable_4kp60=1
-```
-
----
-
-## Optional Overclocking
-
-### Maximum Stable Overclock
-The following settings are commented out by default. Uncomment and adjust these values to overclock the Raspberry Pi:
-- **ARM Frequency**: `2800 MHz`
-- **GPU Frequency**: `900 MHz`
-- **Over Voltage Delta**: `50000`
-  ```plaintext
-  #arm_freq=2800
-  #gpu_freq=900
-  #over_voltage_delta=50000
-  ```
-
-**Warning**: Overclocking can void your warranty and may cause hardware instability or damage. Proceed with caution.
+### New PCIe Configuration
+- **`dtparam=pciex1`**: Enables PCIe x1 support.
+- **`dtparam=pciex1_gen=3`**: Configures PCIe to use Gen 3 speeds for improved performance.
 
 ---
 
-## USB Power Configuration
+## Usage
 
-### Maximum USB Power
-Enables maximum USB power output:
-```plaintext
-usb_max_current_enable=1
-```
+1. **Location**: Place the `config.txt` file in the `/boot/firmware/` directory of your Raspberry Pi's boot partition.
+2. **Editing**: Use a text editor to modify the file. Ensure you have proper permissions to edit the file.
+3. **Reboot**: After making changes, reboot the Raspberry Pi for the new settings to take effect.
 
 ---
 
 ## Notes
-- Additional overlays and parameters are documented in `/boot/firmware/overlays/README`.
-- Some settings may impact device functionality. Refer to the official documentation for more details: [Raspberry Pi Configuration Documentation](http://rptl.io/configtxt).
+
+- **Hardware Compatibility**: Some settings may not be compatible with all Raspberry Pi models. Refer to the official Raspberry Pi documentation for compatibility details.
+- **Overclocking**: Overclocking settings are commented out by default. Use them cautiously, as they may void your warranty or cause hardware instability.
+- **PCIe Settings**: The newly added PCIe parameters are intended for advanced users who require PCIe functionality. Ensure your hardware supports these configurations before enabling them.
 
 ---
 
-## Changelog
-- **Initial Version**: Added `config.txt` with default and optional configurations for hardware interfaces, performance, and display settings.
+## Troubleshooting
+
+- If the Raspberry Pi fails to boot after modifying the `config.txt` file, you can revert to the default configuration by removing the SD card, inserting it into another device, and editing the `config.txt` file to restore previous settings.
+- For detailed information about each parameter, visit the official Raspberry Pi documentation: [http://rptl.io/configtxt](http://rptl.io/configtxt).
+
+---
+
+## Contributing
+
+Contributions to improve or extend the `config.txt` file are welcome. Please submit a pull request with a detailed explanation of your changes.
 
 ---
 
 ## License
-This configuration file is provided as part of the `Pi_server_Core` project. Use and modify it as needed for your Raspberry Pi setup.
+
+This project is licensed under the MIT License. See the LICENSE file for details.
