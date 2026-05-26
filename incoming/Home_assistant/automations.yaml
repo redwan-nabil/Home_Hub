@@ -1,0 +1,227 @@
+- id: '1776752047278'
+  alias: IUT home
+  description: ''
+  use_blueprint:
+    path: homeassistant/notify_leaving_zone.yaml
+    input:
+      person_entity: person.redwan_s_home
+      zone_entity: zone.iut_home
+      notify_device: 439bbeccddde0413130e97a847e10794
+- id: '1776778529372'
+  alias: Home assistant update
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.home_assistant_version_current_version
+    to:
+    - 'on'
+  conditions: []
+  actions:
+  - action: notify.mobile_app_redwan_s_s23
+    data:
+      message: "\U0001F6A8 A new Home Assistant update is available! Check the release
+        notes to see if you want to install it."
+      title: Home assistant Update Alert
+  mode: single
+- id: '1778964460052'
+  alias: 'Critical Airspace Alert: Heli & Military (5km)'
+  description: ''
+  triggers:
+  - event_type: flightradar24_entry
+    trigger: event
+  conditions:
+  - condition: template
+    value_template: '{{ trigger.event.data.distance | float <= 5.0 }}'
+  - condition: template
+    value_template: "{% set model = trigger.event.data.aircraft_model | lower | default('')
+      %} {% set airline = trigger.event.data.airline | lower | default('') %} {{ \n
+      \ 'helicopter' in model or \n  'bell' in model or \n  'robinson' in model or
+      \n  'aw1' in model or\n  'air force' in airline or \n  'military' in airline
+      or\n  'army' in airline or\n  'navy' in airline\n}}"
+  actions:
+  - data:
+      message: "\U0001F6A8 ALERT: {{ trigger.event.data.airline | default('Unknown')
+        }} {{ trigger.event.data.aircraft_model }} detected {{ trigger.event.data.distance
+        | round(1) }}km away! Altitude: {{ trigger.event.data.altitude }} ft. Speed:
+        {{ trigger.event.data.ground_speed }} kts."
+      title: Airspace Intrusion Detected
+      data:
+        ttl: 0
+        priority: high
+        channel: alarm_stream
+        url: https://fr24.com/{{ trigger.event.data.callsign }}/{{ trigger.event.data.id
+          }}
+        image: '{{ trigger.event.data.aircraft_photo_medium }}'
+    action: notify.mobile_app_redwan_s_s23
+  mode: single
+- id: '1778989108269'
+  alias: 'System: Log Flights to CSV File'
+  triggers:
+  - event_type: flightradar24_entry
+    trigger: event
+  actions:
+  - action: shell_command.export_flight
+    data:
+      log_data: '{{ now().strftime(''%Y-%m-%d %H:%M:%S'') }},{{ trigger.event.data.get(''callsign'',
+        ''N/A'') }},{{ trigger.event.data.get(''aircraft_model'', ''Unknown'') }},{{
+        trigger.event.data.get(''airline_short'', ''N/A'') }},{{ trigger.event.data.get(''airport_origin_city'',
+        ''N/A'') }},{{ trigger.event.data.get(''airport_destination_city'', ''N/A'')
+        }},{{ trigger.event.data.get(''closest_distance'', ''0'') }}'
+  mode: queued
+- id: '1779008184140'
+  alias: '⚙️ SYSTEM: Auto-Clean Surveillance Databases'
+  description: Trims the airplane and helicopter CSV files to prevent them from getting
+    too large.
+  triggers:
+  - trigger: time
+    at: 03:00:00
+  actions:
+  - action: shell_command.cleanup_flight_log
+  - action: shell_command.cleanup_helicopter_log
+  mode: single
+- id: '1779011494115'
+  alias: "⚡\U0001F525\U0001F30B CRITICAL THREAT ALARM"
+  description: Bypasses phone silent mode for immediate atmospheric, fire, or seismic
+    threats.
+  triggers:
+  - entity_id: sensor.redwan_s_home_lightning_distance
+    below: 5
+    id: lightning
+    trigger: numeric_state
+  - entity_id: sensor.dhaka_us_consulate_bangladesh_pm2_5
+    above: 200
+    id: fire
+    trigger: numeric_state
+  - source: usgs_earthquakes_feed
+    zone: zone.dhaka_city
+    event: enter
+    id: earthquake
+    trigger: geo_location
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id: lightning
+      sequence:
+      - action: notify.mobile_app_redwan_s_s23
+        data:
+          title: '⚡ DANGER: LIGHTNING PROXIMITY'
+          message: Lightning detected within 5km! Protect servers from power surge.
+          data:
+            ttl: 0
+            priority: high
+            channel: alarm_stream
+      - action: notify.mobile_app_ahlia_s_redmi_note_8
+        data:
+          title: '⚡ DANGER: LIGHTNING PROXIMITY'
+          message: Lightning detected within 5km! Protect servers from power surge.
+          data:
+            ttl: 0
+            priority: high
+            channel: alarm_stream
+    - conditions:
+      - condition: trigger
+        id: fire
+      sequence:
+      - action: notify.mobile_app_redwan_s_s23
+        data:
+          title: "\U0001F525 DANGER: HAZARDOUS AIR/FIRE"
+          message: Massive PM2.5 spike detected at US Consulate. Possible urban fire
+            nearby.
+          data:
+            ttl: 0
+            priority: high
+            channel: alarm_stream
+      - action: notify.mobile_app_ahlia_s_redmi_note_8
+        data:
+          title: "\U0001F525 DANGER: HAZARDOUS AIR/FIRE"
+          message: Massive PM2.5 spike detected at US Consulate. Possible urban fire
+            nearby.
+          data:
+            ttl: 0
+            priority: high
+            channel: alarm_stream
+    - conditions:
+      - condition: trigger
+        id: earthquake
+      sequence:
+      - action: notify.mobile_app_redwan_s_s23
+        data:
+          title: "\U0001F30B CRITICAL: EARTHQUAKE DETECTED"
+          message: A seismic event has just struck the Dhaka region! Take cover immediately!
+          data:
+            ttl: 0
+            priority: high
+            channel: alarm_stream
+            vibrationPattern: 100, 1000, 100, 1000, 100, 1000
+      - action: notify.mobile_app_ahlia_s_redmi_note_8
+        data:
+          title: "\U0001F30B CRITICAL: EARTHQUAKE DETECTED"
+          message: A seismic event has just struck the Dhaka region! Take cover immediately!
+          data:
+            ttl: 0
+            priority: high
+            channel: alarm_stream
+            vibrationPattern: 100, 1000, 100, 1000, 100, 1000
+  mode: single
+- id: '1779029065143'
+  alias: "\U0001F4E1 SENTRY: Space Weather Radio Interruption Warning"
+  description: ''
+  triggers:
+  - entity_id: sensor.planetary_k_index
+    above: 6
+    trigger: numeric_state
+  actions:
+  - action: notify.mobile_app_redwan_s_s23
+    data:
+      title: '☀️ CRITICAL: SOLAR STORM DETECTED'
+      message: Kp-Index has breached level 6. Potential degradation to satellite,
+        GPS, and HF communication infrastructure.
+      data:
+        priority: high
+        channel: alarm_stream
+- id: '1779192276256'
+  alias: "\U0001F6F0️ SENTRY: ISS Overhead Alert"
+  description: Notifies the S23 when the ISS enters visual range over Dhaka.
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.iss
+    from: 'off'
+    to: 'on'
+  actions:
+  - action: notify.mobile_app_redwan_s_s23
+    data:
+      title: "\U0001F6F0️ ISS OVERHEAD NOW!"
+      message: "The International Space Station is currently passing over Dhaka! Go
+        outside and look up. \nHumans currently in orbit: {{ states('sensor.iss')
+        | default('Unknown') }}"
+      data:
+        ttl: 0
+        priority: high
+        importance: high
+        channel: iss_tracker
+        vibrationPattern: 0, 400, 200, 400, 1000, 400, 200, 400
+  mode: single
+- id: '1779279092548'
+  alias: "\U0001F681 SYSTEM: Log Helicopter to CSV Archive"
+  description: Writes new helicopter arrivals to the local system log.
+  triggers:
+  - entity_id: sensor.helicopter_surveillance_log_10km
+    trigger: state
+  conditions:
+  - condition: template
+    value_template: '{{ trigger.to_state.attributes.flights | length > 0 and (trigger.from_state.attributes.flights
+      is none or trigger.to_state.attributes.flights[0].id != trigger.from_state.attributes.flights[0].id)
+      }}'
+  actions:
+  - action: system_log.write
+    data:
+      level: warning
+      message: '{% set f = trigger.to_state.attributes.flights[0] %}  {{ now().strftime(''%Y-%m-%d
+        %H:%M:%S'') }},{{ f.callsign | default(''Unknown'') }},{{ f.aircraft_model
+        | default(''Unknown'') }},{{ f.airline_short | default(''None'') }},{{ f.airport_origin_city
+        | default(''None'') }},{{ f.airport_destination_city | default(''None'') }},{{
+        f.distance | round(2) }},{{ f.altitude | default(''0'') }},{{ f.ground_speed
+        | default(''0'') }}'
+  mode: single
