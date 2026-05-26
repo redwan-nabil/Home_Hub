@@ -1,107 +1,81 @@
 # 🚀 Release Notes
 
 ### Updates in `pi_control_bot.py`:
-1. **Removed Weather and Thunderstorm Radar Functionality**:
-   - The weather API integration and thunderstorm radar functionality have been removed, including the background radar thread and associated configurations (e.g., `WEATHER_API_KEY`, `PHONE_IP`, `CITY`).
+1. **New Feature: Enhanced System Performance Monitoring**
+   - Added detailed system performance monitoring under the `/performance` command.
+   - Reports CPU usage, RAM usage, GPU memory, system temperature, power draw (with PMIC linear correction for Raspberry Pi 5), and internet speed (download, upload, and ping).
 
-2. **Added Network Sync on Boot**:
-   - Introduced a `wait_for_internet` function to ensure the Raspberry Pi waits for a stable internet connection before starting the bot.
+2. **Improved Security for Secure Commands**
+   - Enhanced the `/clear` command to validate the exact syntax `/clear cache` to prevent accidental execution.
+   - Added detailed error messages for invalid `/clear` command usage.
 
-3. **Enhanced Shutdown Command**:
-   - The `/shutdown` command now includes additional steps for safely stopping Docker containers and syncing disks before powering off the Raspberry Pi.
+3. **Bug Fixes**
+   - Fixed missing `chat_id` parameter in `bot.edit_message_text` within the `/performance` command handler.
+   - Improved error handling for email sending and performance data retrieval.
 
-4. **Improved `/clear cache` Command**:
-   - Enhanced the `/clear cache` command to include additional cleanup tasks:
-     - Removal of temporary PDF files.
-     - Cleaning of system logs older than 1 day.
-     - Clearing of APT cache.
-     - Dropping unused RAM caches.
-
-5. **Improved `/performance` Command**:
-   - Added power consumption calculation using the Raspberry Pi's PMIC (Power Management Integrated Circuit) data.
-   - Improved error handling for performance data collection.
-   - Enhanced the performance report to include:
-     - Total system power draw in watts.
-     - Internet speed test results (download, upload, and ping).
-
-6. **Removed Unused Code**:
-   - Removed unused imports and configurations related to weather API and radar functionality (e.g., `requests`, `threading`, `WEATHER_API_KEY`, etc.).
-
-7. **Startup Notification**:
-   - Added a startup notification to inform the admin when the Raspberry Pi and bot are online.
+4. **Code Refactoring**
+   - Improved code readability and modularity by adding comments and organizing sections.
+   - Enhanced logging for better debugging and monitoring.
 
 ---
 
-# Pi Control Bot
+# Pi Server Control Bot
 
-`pi_control_bot.py` is a Python-based Telegram bot designed to provide remote control and monitoring capabilities for a Raspberry Pi. The bot includes features such as secure system commands with two-factor authentication (2FA), system performance monitoring, and safe shutdown procedures.
+`pi_control_bot.py` is a Python-based Telegram bot designed to provide secure remote control and monitoring of a Raspberry Pi server. It includes features like two-factor authentication (2FA) for critical commands, system performance monitoring, and automated email notifications for security.
 
 ## Features
 
-1. **Secure System Commands with 2FA**:
-   - Execute critical system commands (`/reboot`, `/shutdown`, `/clear cache`) only after verifying a one-time password (OTP) sent to the admin's email.
+1. **Secure Commands with 2FA**
+   - Commands like `/reboot`, `/shutdown`, and `/clear cache` are protected with a one-time password (OTP) sent to the admin's email.
+   - Only the authorized admin can execute these commands after verifying the OTP.
 
-2. **System Performance Monitoring**:
-   - Monitor Raspberry Pi's performance metrics, including:
+2. **System Performance Monitoring**
+   - Use the `/performance` command to get detailed system performance metrics, including:
      - CPU usage
      - RAM usage
      - GPU memory usage
      - System temperature
-     - Power consumption
+     - Total power draw (with PMIC correction for Raspberry Pi 5)
      - Internet speed (download, upload, and ping)
 
-3. **Safe Shutdown Procedures**:
-   - The `/shutdown` command ensures a safe shutdown by stopping Docker containers and syncing disks before powering off.
+3. **Startup Notification**
+   - Sends a notification to the admin's Telegram account when the Raspberry Pi boots up and the bot is ready.
 
-4. **Deep Cache Cleaning**:
-   - The `/clear cache` command performs a comprehensive cleanup of temporary files, logs, and unused RAM caches.
+4. **Network Connectivity Check**
+   - Ensures the Raspberry Pi is connected to the internet before starting the bot.
 
-5. **Startup Notification**:
-   - Sends a notification to the admin when the Raspberry Pi boots up and the bot is online.
-
----
-
-## Prerequisites
-
-1. **Hardware**:
-   - A Raspberry Pi with an internet connection.
-
-2. **Software**:
-   - Python 3.x
-   - Required Python libraries (see [Installation](#installation)).
-
-3. **Telegram Bot**:
-   - A Telegram bot token obtained from [BotFather](https://core.telegram.org/bots#botfather).
-   - Your Telegram user ID (to set as the admin).
-
-4. **Email Account**:
-   - A Gmail account with an app-specific password for sending OTPs.
+5. **Error Handling**
+   - Provides detailed error messages for email sending, command execution, and performance monitoring.
 
 ---
 
 ## Installation
 
-1. **Clone the Repository**:
+1. **Clone the Repository**
    ```bash
    git clone https://github.com/your-repo/Pi_server_control.git
    cd Pi_server_control
    ```
 
-2. **Install Dependencies**:
-   Install the required Python libraries:
+2. **Install Dependencies**
+   Ensure you have Python 3 installed, then install the required Python packages:
    ```bash
    pip install pyTelegramBotAPI psutil speedtest-cli
    ```
 
-3. **Configure the Script**:
-   - Open `pi_control_bot.py` and update the following variables:
+3. **Configure Credentials**
+   - Open `pi_control_bot.py` and replace the following placeholders with your credentials:
      - `BOT_TOKEN`: Your Telegram bot token.
      - `ADMIN_ID`: Your Telegram user ID.
-     - `SENDER_EMAIL`: Your Gmail address.
-     - `EMAIL_APP_PASSWORD`: Your Gmail app-specific password.
+     - `SENDER_EMAIL`: The email address used to send OTPs.
+     - `EMAIL_APP_PASSWORD`: The app password for the sender email.
      - `RECEIVER_EMAIL`: The email address where OTPs will be sent.
 
-4. **Run the Bot**:
+4. **Set Up Email**
+   - Ensure the sender email account is configured to allow app passwords (e.g., for Gmail, enable "Allow less secure apps" or use an app password).
+
+5. **Run the Bot**
+   Start the bot using the following command:
    ```bash
    python3 pi_control_bot.py
    ```
@@ -111,66 +85,81 @@
 ## Usage
 
 ### 1. **Secure Commands**
-   - **Reboot**: `/reboot`
-   - **Shutdown**: `/shutdown`
-   - **Clear Cache**: `/clear cache`
+   - `/reboot`: Reboots the Raspberry Pi after OTP verification.
+   - `/shutdown`: Safely shuts down the Raspberry Pi after OTP verification.
+   - `/clear cache`: Clears temporary files, system logs, and frees up RAM after OTP verification.
 
-   For each command:
+   **Example Workflow:**
+   - Send `/reboot` to the bot.
    - The bot will send an OTP to the configured email.
-   - Reply with the OTP to confirm the command.
+   - Reply to the bot with the OTP to execute the command.
 
-### 2. **Performance Monitoring**
-   - Use the `/performance` command to get a detailed report of the Raspberry Pi's performance metrics.
+### 2. **System Performance**
+   - `/performance`: Displays detailed system performance metrics, including:
+     - CPU usage
+     - RAM usage
+     - GPU memory usage
+     - System temperature
+     - Total power draw (for Raspberry Pi 5)
+     - Internet speed (download, upload, and ping)
+
+   **Example Output:**
+   ```
+   📊 Raspberry Pi Performance:
+
+   🌡️ Temperature: 45.2°C
+   ⚡ Power Draw: 5.67 W (Total System)
+   🧠 CPU Usage: 23%
+   💾 RAM Usage: 45%
+   🎮 GPU Memory: 76M
+
+   🌐 Internet Speed:
+   ⬇️ Download: 50.23 Mbps
+   ⬆️ Upload: 10.45 Mbps
+   🏓 Ping: 25.3 ms
+   ```
+
+### 3. **Startup Notification**
+   - Upon boot, the bot sends a message to the admin's Telegram account:
+     ```
+     🚀 *System Online:* Raspberry Pi has successfully booted and the Control Bot is ready.
+     ```
 
 ---
 
 ## Security
 
-- **Two-Factor Authentication (2FA)**:
-  - All critical commands require OTP verification.
-  - OTPs are sent to the configured email address.
-
-- **Admin Restriction**:
-  - Only the admin (identified by `ADMIN_ID`) can interact with the bot.
+- **Two-Factor Authentication (2FA):** Critical commands require a one-time password (OTP) sent to the admin's email for execution.
+- **Admin Restriction:** Only the admin (identified by `ADMIN_ID`) can interact with the bot.
+- **Email Alerts:** The bot sends email notifications for every secure command request.
 
 ---
 
-## Known Issues
+## Troubleshooting
 
-1. **Email Delivery**:
-   - Ensure the Gmail account used for sending OTPs has app-specific passwords enabled.
-   - Verify that the email credentials are correct.
+1. **Bot Not Responding**
+   - Ensure the Raspberry Pi is connected to the internet.
+   - Verify that the `BOT_TOKEN` and `ADMIN_ID` are correctly configured.
 
-2. **Performance Monitoring**:
-   - Power consumption data may not be available on older Raspberry Pi models.
+2. **Email Not Sent**
+   - Check the `SENDER_EMAIL` and `EMAIL_APP_PASSWORD` credentials.
+   - Ensure the sender email account allows app passwords or less secure apps.
 
-3. **Internet Connectivity**:
-   - The bot waits for an active internet connection before starting. Ensure the Raspberry Pi is connected to a network.
+3. **Performance Metrics Not Displayed**
+   - Ensure the `vcgencmd` command is available on your Raspberry Pi.
+   - Install the `speedtest-cli` Python package if internet speed is not displayed.
+
+4. **Permission Issues**
+   - Ensure the bot script is run with sufficient permissions to execute system commands (e.g., `sudo`).
 
 ---
 
-## Future Improvements
+## Contributing
 
-1. **Add More Commands**:
-   - Extend functionality to include additional system management commands.
-
-2. **Multi-User Support**:
-   - Allow multiple admins with different levels of access.
-
-3. **Improved Error Handling**:
-   - Enhance error reporting for email delivery and performance monitoring.
-
-4. **Web-Based Dashboard**:
-   - Develop a web interface for monitoring and controlling the Raspberry Pi.
+Contributions are welcome! Please fork the repository and submit a pull request with your changes.
 
 ---
 
 ## License
 
 This project is licensed under the MIT License. See the `LICENSE` file for details.
-
----
-
-## Author
-
-Developed by **Nabil Redwoan**. For any inquiries, please contact [nabilredwoan2005@gmail.com](mailto:nabilredwoan2005@gmail.com).
