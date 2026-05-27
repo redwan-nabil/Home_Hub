@@ -1,154 +1,164 @@
-# `backup_wifi.sh` Script Documentation
+# backup_wifi.sh
+
+## 🚀 Release Notes
+
+### Changes in the Updated Script:
+1. **Enhanced Logging**:
+   - Added timestamps to log messages for better debugging and monitoring.
+   - Improved clarity of log messages to indicate the system's state transitions (e.g., "Fiber down!", "Fiber restored!").
+
+2. **Adaptive Sleep Mechanism**:
+   - Introduced a dynamic sleep interval (`SLEEP_TIME`) that adjusts based on the system's state:
+     - **Fiber Active**: Relaxed 30-second interval for health checks.
+     - **Fiber Down**: Faster 15-second interval to quickly detect fiber restoration.
+
+3. **Code Cleanup**:
+   - Improved readability and maintainability with better comments and structure.
+   - Removed redundant or unnecessary operations.
+
+---
 
 ## Overview
-The `backup_wifi.sh` script is designed to provide a robust failover mechanism for a Raspberry Pi server setup. It ensures uninterrupted internet connectivity by monitoring the primary fiber connection and activating a backup cellular modem with a Wi-Fi hotspot when the primary connection fails. The script is optimized for power-saving, making it ideal for solar-powered setups or environments where energy efficiency is critical.
+
+`backup_wifi.sh` is a power-efficient watchdog script designed for Raspberry Pi servers running on solar power. It monitors the primary fiber internet connection and automatically switches to a backup 4G modem with a Wi-Fi hotspot when the fiber connection fails. The script ensures minimal power consumption by dynamically managing the power state of the USB modem and Wi-Fi hotspot.
 
 ---
 
 ## Features
-- **Primary Internet Monitoring**: Continuously monitors the primary fiber connection via Ethernet (`eth0`).
-- **Automatic Failover**: Activates a backup cellular modem and Wi-Fi hotspot when the primary connection is unavailable.
-- **Power Management**: Automatically powers off the USB modem when the primary connection is restored to conserve energy.
-- **Adaptive Monitoring**: Adjusts the monitoring frequency based on the current network status (normal or backup mode).
-- **Safety Startup**: Ensures the backup system is powered off during script initialization to save energy.
+
+- **Primary Internet Monitoring**: Continuously pings a test IP (Google DNS: `8.8.8.8`) to verify the availability of the primary fiber connection.
+- **Automatic Failover**: Activates a backup 4G modem and Wi-Fi hotspot when the primary connection is down.
+- **Power Management**:
+  - Turns off the USB modem and Wi-Fi hotspot when the primary connection is restored.
+  - Uses `uhubctl` to physically cut power to the USB modem, conserving energy.
+- **Adaptive Health Checks**: Adjusts the frequency of health checks based on the system's state to optimize performance and power usage.
+- **Logging**: Provides clear and timestamped logs for debugging and monitoring.
 
 ---
 
 ## Prerequisites
-Before using the script, ensure the following:
-1. **Hardware Requirements**:
-   - Raspberry Pi with a USB hub supporting power control (e.g., uhubctl-compatible hub).
-   - USB cellular modem (e.g., ZTE modem) connected to the specified USB hub and port.
-   - TP-Link router or similar device for primary fiber connection.
-   - Solar power setup (optional).
 
-2. **Software Requirements**:
-   - `uhubctl`: For USB power control.
+1. **Hardware**:
+   - Raspberry Pi with a USB-connected 4G modem.
+   - TP-Link router or any router with a static IP configuration.
+   - USB hub with power control support (compatible with `uhubctl`).
+
+2. **Software**:
+   - `uhubctl`: For managing USB power states.
    - `hostapd`: For managing the Wi-Fi hotspot.
-   - Proper configuration of the Raspberry Pi's network interfaces and routing.
+   - `iproute2`: For managing network routes.
 
 3. **Configuration**:
-   - Update the script variables to match your setup:
-     - `MAIN_IF`: Name of the primary Ethernet interface (e.g., `eth0`).
-     - `ROUTER_IP`: IP address of the primary router (e.g., `192.168.0.1`).
-     - `TEST_IP`: IP address to ping for internet connectivity checks (e.g., `8.8.8.8`).
-     - `USB_HUB`: USB hub number where the modem is connected.
-     - `USB_PORT`: USB port number where the modem is connected.
+   - Ensure the main fiber connection is configured on interface `eth0`.
+   - Set the correct USB hub and port numbers for the 4G modem in the script.
 
 ---
 
-## Installation
-1. **Clone the Repository**:
-   ```bash
-   git clone https://github.com/your-repo/Pi_server_control.git
-   cd Pi_server_control
-   ```
+## Configuration
 
-2. **Place the Script**:
-   Ensure `backup_wifi.sh` is located in the appropriate directory within the repository.
+Modify the following variables in the script to match your setup:
 
-3. **Set Permissions**:
-   Make the script executable:
-   ```bash
-   chmod +x backup_wifi.sh
-   ```
+```bash
+MAIN_IF="eth0"               # Main Fiber Ethernet connection
+ROUTER_IP="192.168.0.1"      # Main TP-Link Router IP
+TEST_IP="8.8.8.8"            # Google DNS to test real internet
+USB_HUB="2"                  # Your modem's target USB Hub
+USB_PORT="1"                 # Your modem's target USB Port
+```
 
-4. **Install Dependencies**:
-   Install required packages:
-   ```bash
-   sudo apt update
-   sudo apt install uhubctl hostapd -y
-   ```
+---
 
-5. **Configure Network**:
-   - Ensure the primary Ethernet interface (`eth0`) is properly configured.
-   - Set up `hostapd` for Wi-Fi hotspot functionality.
+## How It Works
+
+1. **Startup**:
+   - The script starts by disabling the Wi-Fi hotspot (`hostapd`) and cutting power to the USB modem to save energy.
+
+2. **Health Check**:
+   - The script pings the test IP (`8.8.8.8`) every 30 seconds to check the status of the primary fiber connection.
+
+3. **Failover to Backup**:
+   - If the primary connection is down:
+     - The script performs a quick recheck to confirm the failure.
+     - Powers on the USB modem using `uhubctl`.
+     - Waits 45 seconds for the modem to boot and register on the cellular network.
+     - Starts the Wi-Fi hotspot (`hostapd`) to provide internet access via the 4G modem.
+     - Removes the default route through the fiber connection to ensure traffic is routed through the 4G modem.
+     - Reduces the health check interval to 15 seconds to quickly detect when the fiber connection is restored.
+
+4. **Restoration to Primary**:
+   - If the primary connection is restored:
+     - The script stops the Wi-Fi hotspot to save power.
+     - Restores the default route through the fiber connection.
+     - Cuts power to the USB modem using `uhubctl`.
+     - Resets the health check interval to 30 seconds.
+
+5. **Loop**:
+   - The script runs indefinitely, continuously monitoring the primary connection and managing the backup system as needed.
 
 ---
 
 ## Usage
-Run the script using the following command:
-```bash
-sudo ./backup_wifi.sh
-```
 
-The script will:
-1. Start by ensuring the backup Wi-Fi and USB modem are powered off.
-2. Continuously monitor the primary fiber connection.
-3. Activate the backup system if the primary connection fails.
-4. Restore the primary connection and deactivate the backup system when the fiber connection is restored.
+1. **Make the Script Executable**:
+   ```bash
+   chmod +x backup_wifi.sh
+   ```
 
----
+2. **Run the Script**:
+   ```bash
+   ./backup_wifi.sh
+   ```
 
-## Configuration Details
-### Script Variables
-- `MAIN_IF`: The name of the primary Ethernet interface (default: `eth0`).
-- `ROUTER_IP`: IP address of the primary router (default: `192.168.0.1`).
-- `TEST_IP`: IP address used for internet connectivity checks (default: `8.8.8.8`).
-- `USB_HUB`: USB hub number where the modem is connected (default: `2`).
-- `USB_PORT`: USB port number where the modem is connected (default: `1`).
-
-### Power Management
-- The script uses `uhubctl` to control USB power for the modem, ensuring energy efficiency.
-- The modem is powered off when the primary connection is active and powered on only when the backup system is needed.
+3. **Run on Boot**:
+   - Add the script to your crontab or systemd service to ensure it starts automatically on boot.
 
 ---
 
-## Logs and Output
-The script provides real-time logs for key events:
-- Fiber connection status.
-- Activation and deactivation of the backup system.
-- USB power control actions.
-- Adaptive sleep intervals.
+## Logs
+
+The script outputs logs to the console, including timestamps for key events:
+
+- Fiber connection status (up or down).
+- Actions taken (e.g., powering on/off the modem, starting/stopping the Wi-Fi hotspot).
+- Sleep interval adjustments.
 
 Example log output:
 ```
 🚀 Ultimate Power-Saving Watchdog Started...
-Wed Oct 11 12:00:00 UTC 2023: Fiber down! Dropping to fast check...
-Wed Oct 11 12:00:03 UTC 2023: Fiber confirmed dead. Restoring 5V power to USB modem...
+Mon Oct 30 10:00:00 UTC 2023: Fiber down! Dropping to fast check...
+Mon Oct 30 10:00:03 UTC 2023: Fiber confirmed dead. Restoring 5V power to USB modem...
 Waiting 45s for cellular network registration...
 ⚡ Emergency Network is fully ONLINE.
-Wed Oct 11 12:15:00 UTC 2023: Fiber restored! Cleaning up emergency system...
+Mon Oct 30 10:01:00 UTC 2023: Fiber restored! Cleaning up emergency system...
 🔒 Modem powered completely OFF. System running on Fiber.
 ```
 
 ---
 
 ## Troubleshooting
-### Common Issues
-1. **`uhubctl` Not Found**:
-   Ensure `uhubctl` is installed and compatible with your USB hub.
-   ```bash
-   sudo apt install uhubctl
-   ```
 
-2. **Wi-Fi Hotspot Not Starting**:
-   Verify `hostapd` is installed and properly configured:
-   ```bash
-   sudo systemctl status hostapd
-   ```
+- **`uhubctl` Not Found**:
+  - Install `uhubctl` using your package manager or from the [official repository](https://github.com/mvp/uhubctl).
+  - Ensure your USB hub supports power control.
 
-3. **Incorrect USB Hub/Port Configuration**:
-   Use `uhubctl` to list available hubs and ports:
-   ```bash
-   sudo uhubctl
-   ```
+- **Wi-Fi Hotspot Issues**:
+  - Verify that `hostapd` is installed and configured correctly.
+  - Check the status of `hostapd` using:
+    ```bash
+    sudo systemctl status hostapd
+    ```
 
-4. **Routing Issues**:
-   Ensure the default route is correctly configured for both primary and backup connections.
-
----
-
-## Notes
-- The script is designed for continuous operation and should ideally be run as a background service.
-- Consider adding the script to your system's startup sequence for automatic failover management.
+- **Network Route Issues**:
+  - Ensure the correct IP and interface are configured for the primary router (`ROUTER_IP` and `MAIN_IF`).
 
 ---
 
 ## License
-This script is licensed under the MIT License. See the LICENSE file for details.
+
+This script is open-source and available under the MIT License. Feel free to modify and distribute it as needed.
 
 ---
 
 ## Author
-Developed by [Your Name/Team]. For questions or support, contact [Your Email/Support Channel].
+
+Developed by a Senior DevOps Engineer. For questions or support, feel free to reach out.
