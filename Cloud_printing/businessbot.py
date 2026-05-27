@@ -16,7 +16,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # Dictionaries and Hardware Locks
 user_states = {}
 jobs = {}
-scanner_hardware_lock = threading.Lock() # Prevents multiple scans from crashing the scanner
+scanner_hardware_lock = threading.Lock()
 
 print("🚀 Business Print/Scan Bot is Online!")
 
@@ -36,7 +36,7 @@ Pages: All pages in your PDF will be printed.
 
 Note: You cannot change these settings here. If you need custom preferences, please contact the admin directly: t.me/Redwan_Nabil2003.
 
-Please choose your color preference to proceed:"""
+Please choose your print format and color preference to proceed:"""
 
 SCAN_PRESETS = """★ Scanning Preferences
 Format: PDF
@@ -129,13 +129,18 @@ def handle_document(message):
     jobs[job_id] = {'user_id': user_id, 'file_path': file_path, 'type': 'print', 'name': message.from_user.first_name, 'total_pages': total_pages}
     user_states[user_id] = {'current_job': job_id}
     
-    # Let the customer proceed with menus immediately regardless of printer status
+    # --- UPDATED PRICE MENU ---
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
-        InlineKeyboardButton("🎨 Color (6৳/pg)", callback_data=f"sure_print_color_{job_id}"),
-        InlineKeyboardButton("⚫⚪ B/W (4৳/pg)", callback_data=f"sure_print_bw_{job_id}")
+        InlineKeyboardButton("🎨 Color 1-Side (6৳/pg)", callback_data=f"print_color_one_{job_id}"),
+        InlineKeyboardButton("⚫⚪ B/W 1-Side (4৳/pg)", callback_data=f"print_bw_one_{job_id}")
+    )
+    markup.add(
+        InlineKeyboardButton("🎨 Color 2-Side (10৳/pg)", callback_data=f"print_color_both_{job_id}"),
+        InlineKeyboardButton("⚫⚪ B/W 2-Side (5৳/pg)", callback_data=f"print_bw_both_{job_id}")
     )
     markup.add(InlineKeyboardButton("❌ Cancel", callback_data=f"cancel_job_{job_id}"))
+    
     bot.send_message(user_id, PRINT_PRESETS, reply_markup=markup)
 
 @bot.message_handler(content_types=['photo', 'video', 'audio', 'voice'])
@@ -153,7 +158,6 @@ def handle_scan_command(message):
         job_id = str(message.message_id)
         jobs[job_id] = {'user_id': user_id, 'type': 'scan', 'name': message.from_user.first_name}
         
-        # Let the customer proceed immediately
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("Yes", callback_data=f"sure_scan_{job_id}"),
                    InlineKeyboardButton("No", callback_data=f"cancel_scan_{job_id}"))
@@ -176,23 +180,16 @@ def handle_query(call):
 
     user_id = job['user_id']
 
-    if action in ["sure_print_color", "sure_print_bw"]:
+    # --- COMBINED PRINT LOGIC ---
+    if action in ["print_color_one", "print_bw_one", "print_color_both", "print_bw_both"]:
         is_color = "color" in action
+        is_both = "both" in action
+        
         job['color_pref'] = "Color" if is_color else "Black & White"
         job['cups_color'] = "COLOR" if is_color else "MONO"
+        job['duplex'] = "Both-Sided" if is_both else "One-Sided"
         
-        bot.edit_message_text(f"Great! You selected **{job['color_pref']}**.", chat_id="REDACTED_BY_SYSADMIN"
-        
-        markup = InlineKeyboardMarkup(row_width=2)
-        markup.add(
-            InlineKeyboardButton("📄 One-Sided", callback_data=f"duplex_one_{job_id}"),
-            InlineKeyboardButton("📑 Both-Sided", callback_data=f"duplex_both_{job_id}")
-        )
-        bot.send_message(user_id, "Do you want to print on one side or both sides of the paper?", reply_markup=markup)
-        
-    elif action in ["duplex_one", "duplex_both"]:
-        job['duplex'] = "Both-Sided" if "both" in action else "One-Sided"
-        bot.edit_message_text(f"Great! You selected **{job['duplex']}**.", chat_id="REDACTED_BY_SYSADMIN"
+        bot.edit_message_text(f"Great! You selected **{job['color_pref']} ({job['duplex']})**.", chat_id="REDACTED_BY_SYSADMIN"
         
         bot.send_message(user_id, PAYMENT_TEXT)
         user_states[user_id] = {'state': 'WAITING_FOR_PAYMENT', 'current_job': job_id}
@@ -242,17 +239,25 @@ def handle_query(call):
                         except: pass
                         bot.send_message(user_id, "🎉 Your print is ready! You can collect it now.")
                     else:
-                        # Print Odd Pages First
+                        # ---------------------------------------------------------
+                        # NORMAL ODD PAGES (1, 3, 5...)
+                        # Stack ends up with Page 1 on Bottom, Page 3 on Top.
+                        # ---------------------------------------------------------
                         os.system(f"lp -d {PRINTER_NAME} -o media=A4 -o page-set=odd -o Ink={job['cups_color']} -o fit-to-page '{job['file_path']}'")
-                        
-                        # Generate explicit list of even pages
-                        even_pages = [str(i) for i in range(2, total_pages + 1, 2)]
-                        job['even_pages_list'] = ",".join(even_pages)
                         
                         markup = InlineKeyboardMarkup()
                         markup.add(InlineKeyboardButton("✅ Done (Print Even Pages)", callback_data=f"admin_flippage_{job_id}"))
                         
-                        bot.send_message(ADMIN_ID, f"⚠️ **BOTH-SIDED PRINT PAUSED**\n\nThe odd pages are printing now.\n1. Take the printed stack.\n2. Swap/Reverse the ENTIRE stack.\n3. Put it back in the tray.\n\nClick 'Done' when ready to print even pages.", parse_mode="Markdown", reply_markup=markup)
+                        instructions = (
+                            "⚠️ **BOTH-SIDED PRINT PAUSED**\n\n"
+                            "The odd pages are printing now.\n"
+                            "1. Wait for them to finish completely.\n"
+                            "2. Take the entire stack as it is (DO NOT shuffle them).\n"
+                            "3. Flip the ENTIRE stack over so the printed sides are facing DOWN (blank sides UP).\n"
+                            "4. Put the stack back into the paper feeder.\n\n"
+                            "Click 'Done' when ready to print even pages."
+                        )
+                        bot.send_message(ADMIN_ID, instructions, parse_mode="Markdown", reply_markup=markup)
                 else:
                     # Normal One-Sided Print
                     os.system(f"lp -d {PRINTER_NAME} -o media=A4 -o sides=one-sided -o Ink={job['cups_color']} -o fit-to-page '{job['file_path']}'")
@@ -281,9 +286,11 @@ def handle_query(call):
                 bot.edit_message_text("🖨️ Sending even pages to printer...", chat_id="REDACTED_BY_SYSADMIN"
             except: pass
             
-            even_pages_list = job.get('even_pages_list', 'even')
-            # Use exact list of pages in reverse order to stop CUPS from padding blank pages
-            os.system(f"lp -d {PRINTER_NAME} -o media=A4 -P {even_pages_list} -o outputorder=reverse -o Ink={job['cups_color']} -o fit-to-page '{job['file_path']}'")
+            # ---------------------------------------------------------
+            # NORMAL EVEN PAGES (2, 4, 6...)
+            # Since flipping the stack put Page 1 on top, it prints Page 2 on it first!
+            # ---------------------------------------------------------
+            os.system(f"lp -d {PRINTER_NAME} -o media=A4 -o page-set=even -o Ink={job['cups_color']} -o fit-to-page '{job['file_path']}'")
             
             time.sleep(5) 
             
@@ -314,7 +321,6 @@ def handle_query(call):
         def process_scan():
             ensure_printer_online_and_notify(user_id, job)
             
-            # Using the lock! If multiple scans queue up, they will wait here patiently one by one.
             with scanner_hardware_lock:
                 try:
                     bot.edit_message_text("⏳ Scanning in progress...", chat_id="REDACTED_BY_SYSADMIN"
@@ -324,10 +330,8 @@ def handle_query(call):
                 
                 scan_file = f"/tmp/scanned_{job_id}.pdf"
                 
-                # Execute the scan blockingly (no more messy sub-threads!)
                 os.system(f"scanimage --mode Color --resolution 600 -x 210 -y 297 --format=pdf > {scan_file}")
                 
-                # Check if the scan actually produced a valid file (size > 1KB)
                 if os.path.exists(scan_file) and os.path.getsize(scan_file) > 1024:
                     bot.send_message(user_id, "Scan complete! Uploading...")
                     try:
