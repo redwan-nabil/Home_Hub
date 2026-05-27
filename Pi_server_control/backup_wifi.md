@@ -1,180 +1,133 @@
-# backup_wifi.sh - Emergency Backup Wi-Fi Script for Pi Server Control
+# backup_wifi.service
 
 ## Overview
-`backup_wifi.sh` is a robust Bash script designed to ensure uninterrupted internet connectivity for Raspberry Pi servers in environments where power efficiency and reliability are critical. The script monitors the primary fiber internet connection and automatically switches to a backup cellular modem and Wi-Fi hotspot when the fiber connection fails. It also restores the primary connection when it becomes available, optimizing power usage by controlling USB power to the modem.
-
----
+The `backup_wifi.service` is a systemd service designed to act as an emergency 4G failover watchdog for the `Pi_server_control` system. It ensures that a backup Wi-Fi connection is established and maintained in the event of a primary network failure. This service runs a script (`backup_wifi.sh`) that handles the failover process and continuously monitors the network status.
 
 ## Features
-- **Automatic Internet Failover**: Monitors the primary fiber connection and switches to backup cellular internet when the fiber is down.
-- **Power Efficiency**: Dynamically controls USB power to the cellular modem to conserve energy, ideal for solar-powered setups.
-- **Adaptive Monitoring**: Adjusts the frequency of internet checks based on the current network status.
-- **Wi-Fi Hotspot Management**: Activates and deactivates the RaspAP Wi-Fi hotspot as needed.
-- **Real-Time Logging**: Provides timestamped logs for all major events, including connection status changes and system actions.
+- Automatically starts the failover script (`backup_wifi.sh`) on boot.
+- Monitors the failover process and ensures the script is always running.
+- Restarts the script in case of failure or unexpected termination.
+- Configured to retry every 10 seconds if the service fails.
 
----
+## Service Configuration
 
-## Requirements
-### Hardware
-- Raspberry Pi with Raspbian OS.
-- USB cellular modem (e.g., ZTE modem).
-- USB hub with power control support (compatible with `uhubctl`).
-- TP-Link router or similar device for primary fiber internet.
+### `[Unit]` Section
+- **Description**: Provides a brief description of the service: "Emergency 4G Failover Watchdog".
+- **After**: Specifies that the service should start only after the `network.target` is active. This ensures that the primary network stack is initialized before the failover script is executed.
 
-### Software
-- `uhubctl`: For USB power control.
-- `hostapd`: For managing the Wi-Fi hotspot.
-- `ping`: For network connectivity checks.
-- `systemctl`: For managing services.
+### `[Service]` Section
+- **ExecStart**: Specifies the command to execute when the service starts. In this case, it runs the script located at `/usr/local/bin/backup_wifi.sh`.
+- **Restart**: Configured to always restart the service if it stops or crashes.
+- **RestartSec**: Sets a delay of 10 seconds before attempting to restart the service.
+- **User**: Runs the service as the `root` user to ensure it has the necessary permissions to manage network configurations.
 
----
-
-## Configuration
-The script uses the following configurable variables:
-
-| Variable       | Description                                      | Default Value       |
-|----------------|--------------------------------------------------|---------------------|
-| `MAIN_IF`      | Network interface for primary fiber connection. | `eth0`              |
-| `ROUTER_IP`    | IP address of the primary router.               | `192.168.0.1`       |
-| `TEST_IP`      | IP address used for internet connectivity tests.| `8.8.8.8` (Google DNS) |
-| `USB_HUB`      | Target USB hub number for the modem.            | `2`                 |
-| `USB_PORT`     | Target USB port number for the modem.           | `1`                 |
-| `SLEEP_TIME`   | Interval (in seconds) between connectivity checks.| `30` (adjusts dynamically) |
-
----
+### `[Install]` Section
+- **WantedBy**: Ensures the service is started as part of the `multi-user.target`, which is the standard system runlevel for non-graphical multi-user systems.
 
 ## Installation
-1. **Install Required Packages**:
-   Ensure the following packages are installed:
-   ```bash
-   sudo apt update
-   sudo apt install uhubctl hostapd
+
+1. **Place the Service File**:
+   Save the `backup_wifi.service` file to the systemd service directory:
+   ```
+   /etc/systemd/system/backup_wifi.service
    ```
 
-2. **Place the Script**:
-   Save the script as `backup_wifi.sh` in your desired directory (e.g., `/usr/local/bin/`).
-
-3. **Make the Script Executable**:
-   ```bash
-   chmod +x /usr/local/bin/backup_wifi.sh
+2. **Reload Systemd Daemon**:
+   After placing the service file, reload the systemd manager configuration to recognize the new service:
+   ```
+   sudo systemctl daemon-reload
    ```
 
-4. **Configure USB Hub and Port**:
-   Verify the USB hub and port numbers for your modem using `uhubctl`:
-   ```bash
-   uhubctl
+3. **Enable the Service**:
+   Enable the service to start automatically at boot:
    ```
-   Update the `USB_HUB` and `USB_PORT` variables in the script accordingly.
-
-5. **Enable Hostapd**:
-   Configure `hostapd` to manage the Wi-Fi hotspot. Refer to the [hostapd documentation](https://w1.fi/hostapd/) for setup instructions.
-
----
-
-## Usage
-Run the script manually or set it up as a systemd service for automatic execution on boot.
-
-### Manual Execution
-```bash
-sudo /usr/local/bin/backup_wifi.sh
-```
-
-### Systemd Service
-1. Create a systemd service file:
-   ```bash
-   sudo nano /etc/systemd/system/backup_wifi.service
-   ```
-   Add the following content:
-   ```ini
-   [Unit]
-   Description=Backup Wi-Fi Failover Script
-   After=network.target
-
-   [Service]
-   ExecStart=/usr/local/bin/backup_wifi.sh
-   Restart=always
-   User=root
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-2. Enable and start the service:
-   ```bash
    sudo systemctl enable backup_wifi.service
+   ```
+
+4. **Start the Service**:
+   Start the service immediately:
+   ```
    sudo systemctl start backup_wifi.service
    ```
 
----
+5. **Check Service Status**:
+   Verify that the service is running correctly:
+   ```
+   sudo systemctl status backup_wifi.service
+   ```
 
-## How It Works
-1. **Startup**:
-   - The script starts by ensuring the backup Wi-Fi hotspot is disabled and the USB modem is powered off to conserve energy.
+## Usage
 
-2. **Monitoring**:
-   - The script continuously pings `TEST_IP` (Google DNS) via the primary fiber connection (`MAIN_IF`) every 30 seconds.
-   - If the ping fails, the script performs a secondary check after 3 seconds to confirm the fiber connection is down.
+The `backup_wifi.service` is designed to run in the background and requires no manual intervention during normal operation. It will automatically monitor and manage the failover process using the `backup_wifi.sh` script.
 
-3. **Failover**:
-   - If the fiber connection is confirmed down:
-     - Powers on the USB modem.
-     - Waits 45 seconds for the modem to boot and register on the cellular network.
-     - Starts the `hostapd` service to enable the Wi-Fi hotspot.
-     - Removes the default route via the fiber connection to route traffic through the cellular modem.
+### Logs
+To view logs for the service, use the `journalctl` command:
+```
+sudo journalctl -u backup_wifi.service
+```
 
-4. **Recovery**:
-   - If the fiber connection is restored:
-     - Stops the `hostapd` service to disable the Wi-Fi hotspot.
-     - Restores the default route via the fiber connection.
-     - Powers off the USB modem to conserve energy.
+This will display logs related to the execution of the `backup_wifi.sh` script and any issues encountered by the service.
 
-5. **Adaptive Sleep**:
-   - The script adjusts the sleep interval based on the network status:
-     - 30 seconds during normal operation.
-     - 15 seconds during backup mode for faster recovery.
+## Customization
 
----
-
-## Logging
-The script logs key events with timestamps, including:
-- Fiber connection status changes.
-- Activation and deactivation of the backup system.
-- Power state changes for the USB modem.
-
-Logs are displayed in the terminal during execution.
-
----
+- **Script Path**: If the `backup_wifi.sh` script is located in a different directory, update the `ExecStart` line in the service file to reflect the correct path.
+- **Restart Delay**: Modify the `RestartSec` value to change the delay between restart attempts.
+- **User**: If the script does not require root privileges, you can change the `User` field to a less privileged user.
 
 ## Troubleshooting
-- **USB Power Control Issues**:
-  Ensure your USB hub supports power control and is compatible with `uhubctl`. Test using:
-  ```bash
-  uhubctl -l <hub> -p <port> -a on
-  ```
 
-- **Hostapd Service Fails to Start**:
-  Verify your `hostapd` configuration and ensure it is correctly set up for your Wi-Fi hotspot.
+- **Service Fails to Start**:
+  - Check the syntax of the service file:
+    ```
+    sudo systemd-analyze verify /etc/systemd/system/backup_wifi.service
+    ```
+  - Review the logs for detailed error messages:
+    ```
+    sudo journalctl -u backup_wifi.service
+    ```
 
-- **Incorrect Routing**:
-  Check the default route using:
-  ```bash
-  ip route
-  ```
-  Ensure the route points to the correct gateway (`ROUTER_IP` for fiber, or cellular modem during backup).
+- **Script Issues**:
+  - Ensure the `backup_wifi.sh` script is executable:
+    ```
+    sudo chmod +x /usr/local/bin/backup_wifi.sh
+    ```
+  - Test the script manually to verify its functionality:
+    ```
+    /usr/local/bin/backup_wifi.sh
+    ```
 
----
+## Uninstallation
+
+To remove the `backup_wifi.service`, follow these steps:
+
+1. Stop the service:
+   ```
+   sudo systemctl stop backup_wifi.service
+   ```
+
+2. Disable the service:
+   ```
+   sudo systemctl disable backup_wifi.service
+   ```
+
+3. Remove the service file:
+   ```
+   sudo rm /etc/systemd/system/backup_wifi.service
+   ```
+
+4. Reload the systemd daemon:
+   ```
+   sudo systemctl daemon-reload
+   ```
+
+5. Optionally, remove the `backup_wifi.sh` script if it is no longer needed:
+   ```
+   sudo rm /usr/local/bin/backup_wifi.sh
+   ```
 
 ## Notes
-- This script is optimized for power-sensitive environments, such as solar-powered Raspberry Pi setups.
-- Ensure proper configuration of the `hostapd` service and USB hub/port settings before running the script.
-- Modify the `TEST_IP` variable if you prefer to use a different server for connectivity checks.
-
----
+- Ensure that the `backup_wifi.sh` script is properly configured and tested to handle the failover process.
+- This service requires root privileges to manage network configurations. Use caution when modifying the service or script.
 
 ## License
-This script is provided under the MIT License. Feel free to use, modify, and distribute it as needed.
-
----
-
-## Author
-Developed by the Pi Server Control team. For questions or support, please contact [support@example.com].
+This service is part of the `Pi_server_control` project and is subject to the project's licensing terms.
