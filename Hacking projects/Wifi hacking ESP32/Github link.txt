@@ -1,0 +1,5 @@
+https://github.com/SameerAlSahab/ESP32-Deauther/releases/tag/Hydra32
+
+
+ESP flash tool:
+https://docs.espressif.com/projects/esp-test-tools/en/latest/esp32/production_stage/tools/flash_download_tool.html
