@@ -11,13 +11,13 @@
 // CONFIGURATION CREDENTIALS
 // ==========================================
 const char* ssid = "Syndicate";
-const char* password = "586792023-";
-const char* mqtt_server = "192.168.0.40"; 
+const char* password = "-";
+const char* mqtt_server = "192..0."; 
 
-#define BOT_TOKEN "8656067869:AAFSea_-LngpR87IYf_iR6-iyxuqqJ8u_LI"
-#define CHAT_ID "1435882929"
-#define AUTHOR_EMAIL "nabilredwoan2005@gmail.com"
-#define AUTHOR_PASSWORD "uexp klsj jfuq xhkt" 
+#define BOT_TOKEN "865uqqJ8u_LI"
+#define CHAT_ID "14329"
+#define AUTHOR_EMAIL "nal.com"
+#define AUTHOR_PASSWORD "u" 
 
 #define TEST_TRIGGER_PIN 13  
 
