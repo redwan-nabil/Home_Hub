@@ -23,27 +23,32 @@ homeassistant:
   allowlist_external_dirs:
     - /config/www
 
+# ==========================================
+# DASHBOARD CONTROLS
+# ==========================================
+input_boolean:
+  show_pi_power_history:
+    name: "Show Pi Power History"
+    icon: mdi:chart-bar
+
+# ==========================================
+# SHELL COMMANDS & COMMAND LINE SENSORS
+# ==========================================
 shell_command:
-# Trigger backup in the background
-  run_ha_backup: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."
-# God Mode: Restart Nextcloud
+  run_ha_backup: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."  
   restart_nextcloud: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."
-# God Mode: Restart CCTV
   restart_cctv: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."
-# Export Flight Data to CSV
   export_flight: >
-    sh -c "echo '{{ log_data }}' >> /config/www/flight_history.csv"
-# Auto-Delete old flights (Keeps only the newest 1000 lines)
+    sh -c "echo '{{ log_data | replace(\"'\", \"\") }}' >> /config/www/flight_history.csv"
   cleanup_flight_log: >
     sh -c "tail -n 1000 /config/www/flight_history.csv > /config/www/tmp.csv && mv /config/www/tmp.csv /config/www/flight_history.csv"
-# Auto-Delete old helicopters (Keeps only the newest 1000 lines)
   cleanup_helicopter_log: >
     sh -c "tail -n 1000 /config/www/helicopter_history.csv > /config/www/tmp_heli.csv && mv /config/www/tmp_heli.csv /config/www/helicopter_history.csv"
 
 command_line:
   - sensor:
       name: "RPi5 Fan Speed"
-      command: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa redwannabil@127.0.0.1 'cat /sys/devices/platform/cooling_fan/hwmon/hwmon*/fan1_input 2>/dev/null || echo 0'"
+      command: "cat /config/fan_speed.txt"
       unit_of_measurement: "RPM"
       scan_interval: 15
   - sensor:
@@ -52,14 +57,48 @@ command_line:
       unit_of_measurement: "%"
       icon: mdi:harddisk
       scan_interval: 60
-      
   - sensor:
       name: "CCTV SSD Health"
       command: "cat /config/sda_health.txt"
       unit_of_measurement: "%"
       icon: mdi:harddisk
       scan_interval: 60
+# Live Motherboard Power Draw
+  - sensor:
+      name: "RPi5 Live Power Draw"
+      unique_id: rpi5_live_power_draw_unique
+      command: "cat /config/power_draw.txt"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      scan_interval: 15
+# ==========================================
+# ENERGY TRACKING ENGINE (Watts -> kWh)
+# ==========================================
+sensor:
+  - platform: integration
+    source: sensor.rpi5_live_power_draw
+    name: "RPi5 Total Energy"
+    unique_id: rpi5_total_energy_tracker_unique
+    unit_prefix: k
+    round: 3
+    method: left
 
+utility_meter:
+  rpi5_daily_electricity:
+    source: sensor.rpi5_total_energy
+    name: "RPi5 Daily Electricity"
+    unique_id: rpi5_daily_electricity_tracker_unique
+    cycle: daily
+  rpi5_monthly_electricity:
+    source: sensor.rpi5_total_energy
+    name: "RPi5 Monthly Electricity"
+    unique_id: rpi5_monthly_electricity_tracker_unique
+    cycle: monthly
+
+# ==========================================
+# CONSOLIDATED MQTT ENGINE
+# ==========================================
 mqtt:
   binary_sensor:
     - name: "CSI Room Occupancy"
@@ -67,10 +106,45 @@ mqtt:
       payload_on: "ON"
       payload_off: "OFF"
       device_class: occupancy
+    - name: "Kitchen Emergency Status"
+      state_topic: "home/alarms/kitchen"
+      payload_on: "TRIGGERED"
+      payload_off: "SAFE"
+      device_class: smoke
+  sensor:
+    - name: "Kitchen Temperature"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.temp | round(1) }}"
+      unit_of_measurement: "°C"
+      device_class: temperature
+      state_class: measurement
+    - name: "Kitchen Humidity"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.hum | round(0) }}"
+      unit_of_measurement: "%"
+      device_class: humidity
+      state_class: measurement
+    - name: "Kitchen Barometric Pressure"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.pressure | round(1) }}"
+      unit_of_measurement: "hPa"
+      device_class: atmospheric_pressure
+      state_class: measurement
+    - name: "Kitchen Gas Concentration"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.gas }}"
+      unit_of_measurement: "PPM"
+      state_class: measurement
+    - name: "Kitchen UPS Rail Voltage"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.batt_volts | round(2) }}"
+      unit_of_measurement: "V"
+      device_class: voltage
+      state_class: measurement
 
 recorder:
-  purge_keep_days: 2 # Only keep 2 days of history instead of 10
-  commit_interval: 30 # Group writes together every 30 seconds
+  purge_keep_days: 2
+  commit_interval: 30
   exclude:
     domains:
       - sun
@@ -80,6 +154,9 @@ recorder:
     entities:
       - sensor.time
       - sensor.date
+      # --- BYPASS MASSIVE RADAR PAYLOADS ---
+      - sensor.airspace_surveillance_log_10km
+      - sensor.helicopter_surveillance_log_10km
 
 template:
   - trigger:
@@ -88,18 +165,15 @@ template:
     sensor:
       - unique_id: local_airspace_surveillance_history
         name: "Airspace Surveillance Log (10km)"
+        icon: mdi:plane
         state: >-
-          {% set flight = trigger.event.data %}
-          {{ flight.time_real_departure | default(now().timestamp(), true) | timestamp_custom('%H:%M') }} - {{ flight.aircraft_model }} ({{ flight.airline_short | default('Unknown') }})
+          {{ trigger.event.data.flight_id | default(now().timestamp(), true) }}
         attributes:
           flights: >-
-            {% set n = 200 %} 
+            {% set n = 50 %}
             {% set m = this.attributes.flights | count | default(0) %}
-            {{ [ trigger.event.data ] + 
-               ( [] if m == 0 else 
-                 this.attributes.flights[0:n-1] )
-            }}
-          icon: mdi:plane
+            {{ [ trigger.event.data ] + ( [] if m == 0 else this.attributes.flights[0:n-1] ) }}
+            
   - trigger:
       - platform: state
         entity_id: sensor.flightradar24_helicopters_in_area
@@ -113,16 +187,15 @@ template:
           flights: >
             {% set saved_history = this.attributes.flights | default([], true) %}
             {% set saved_ids = saved_history | map(attribute='id') | list %}
-            {% set new_flights = trigger.to_state.attributes.flights | default([], true) %}
+            {% set new_flights = trigger.to_state.attributes.flights | default([]) %}
             {% set ns = namespace(new_arrivals=[]) %}
-            
             {% for flight in new_flights %}
               {% if flight.id not in saved_ids %}
                 {% set ns.new_arrivals = ns.new_arrivals + [flight] %}
               {% endif %}
             {% endfor %}
+            {{ (ns.new_arrivals + saved_history)[:5] }}
             
-            {{ (ns.new_arrivals + saved_history)[:15] }}
   - sensor:
       # --- FASTING TIMES ---
       - name: "Next Sahri Ends"
@@ -142,7 +215,6 @@ template:
           {% set a = as_timestamp(states('sensor.islamic_prayer_times_asr_prayer'), 0) %}
           {% set m = as_timestamp(states('sensor.islamic_prayer_times_maghrib_prayer'), 0) %}
           {% set i = as_timestamp(states('sensor.islamic_prayer_times_isha_prayer'), 0) %}
-          
           {% if f == 0 %} Calculating...
           {% elif now >= s and now < (s + 900) %} 🚫 PROHIBITED (Sunrise)
           {% elif now >= (d - 600) and now < d %} 🚫 PROHIBITED (Zawal)
@@ -155,8 +227,8 @@ template:
           {% elif now < i %} Maghrib
           {% else %} Isha
           {% endif %}
-
-      # --- HUMAN READABLE COUNTDOWN (Hours & Mins) ---
+          
+      # --- HUMAN READABLE COUNTDOWN ---
       - name: "Time Until Next Event Formatted"
         icon: mdi:timer-sand
         state: >
@@ -175,7 +247,7 @@ template:
           {% set h = (mins / 60) | int %}
           {% set m = mins % 60 %}
           {% if h > 0 %}{{ h }} hr {{ m }} min{% else %}{{ m }} min{% endif %}
-
+          
       # --- GAUGE PERCENTAGE (0 to 100%) ---
       - name: "Waqt Progress Percentage"
         unit_of_measurement: "%"
@@ -196,16 +268,20 @@ template:
           {% set total = end - start %}
           {% set elapsed = now - start %}
           {{ ((elapsed / total) * 100) | int }}
-notify:
-  - name: export_flight_history
-    platform: file
-    filename: /config/www/flight_history.csv
-    timestamp: false
-  - name: helicopter_csv_logger
-    platform: file
-    # FIXED PATH TO ALLOW HA TO CREATE THE SERVICE
-    filename: /config/www/helicopter_history.csv
-    timestamp: false
+
+     # --- ROUTER UPTIME FORMATTER ---
+      - name: "Tenda Uptime Formatted"
+        icon: mdi:clock-outline
+        state: >
+          {% set u = states('sensor.wireless_router_uptime') | int(0) %}
+          {% set d = (u / 86400) | int %}
+          {% set h = ((u % 86400) / 3600) | int %}
+          {% set m = ((u % 3600) / 60) | int %}
+          {% set s = u % 60 %}
+          {% if d > 0 %}{{ d }}d {{ h }}h {{ m }}m
+          {% elif h > 0 %}{{ h }}h {{ m }}m {{ s }}s
+          {% else %}{{ m }}m {{ s }}s
+          {% endif %}
 
 zone:
   - name: "10km Airspace Dome"
@@ -221,3 +297,25 @@ geo_location:
     minimum_magnitude: 4.5
     latitude: 23.6991875
     longitude: 90.4531719
+
+rest_command:
+  qbit_pause_all:
+    url: "http://192.168.0.40:8082/api/v2/torrents/pause"
+    method: POST
+    payload: "hashes=all"
+    content_type: "application/x-www-form-urlencoded"
+  qbit_resume_all:
+    url: "http://192.168.0.40:8082/api/v2/torrents/resume"
+    method: POST
+    payload: "hashes=all"
+    content_type: "application/x-www-form-urlencoded"
+
+google_assistant:
+  project_id: redwans-smart-home-hub
+  service_account: !include SERVICE_ACCOUNT.json
+  report_state: false
+  exposed_domains:
+    - switch
+    - light
+    - script
+    - input_boolean

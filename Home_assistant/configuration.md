@@ -1,18 +1,74 @@
+# 🚀 Release Notes
+
+The following updates have been made to the `configuration.yaml` file for the Home Assistant setup:
+
+### New Features
+1. **Input Boolean for Dashboard Control**:
+   - Added `input_boolean.show_pi_power_history` to toggle the display of Raspberry Pi power history on the dashboard.
+
+2. **New Shell Commands**:
+   - Added `cleanup_flight_log` and `cleanup_helicopter_log` commands to manage log files by keeping only the latest 1000 entries.
+   - Updated `export_flight` shell command to sanitize single quotes in the log data.
+
+3. **New Command Line Sensors**:
+   - `RPi5 Live Power Draw`: Monitors real-time power consumption of the Raspberry Pi 5.
+   - `RPi5 Fan Speed`: Reads fan speed from a local file.
+   - `Main NVMe Health`: Monitors the health of the main NVMe drive.
+   - `CCTV SSD Health`: Monitors the health of the CCTV SSD.
+   
+4. **Energy Tracking Engine**:
+   - Added `sensor.rpi5_total_energy` to calculate total energy consumption in kWh.
+   - Added `utility_meter` sensors for daily and monthly electricity usage tracking (`rpi5_daily_electricity` and `rpi5_monthly_electricity`).
+
+5. **Enhanced MQTT Integration**:
+   - Added new MQTT binary sensors for `CSI Room Occupancy` and `Kitchen Emergency Status`.
+   - Added MQTT sensors for `Kitchen Temperature`, `Kitchen Humidity`, `Kitchen Barometric Pressure`, `Kitchen Gas Concentration`, and `Kitchen UPS Rail Voltage`.
+
+6. **Recorder Enhancements**:
+   - Excluded additional entities (`sensor.airspace_surveillance_log_10km`, `sensor.helicopter_surveillance_log_10km`) to optimize database size.
+
+7. **Template Sensors**:
+   - Added new template sensors for Islamic prayer times, including `Next Sahri Ends`, `Next Iftar`, `Active Waqt Details`, `Time Until Next Event Formatted`, and `Waqt Progress Percentage`.
+   - Added `Tenda Uptime Formatted` sensor to display router uptime in a human-readable format.
+
+8. **Zone and Geo-location**:
+   - Added a new zone for a "10km Airspace Dome" with a radius of 10km.
+   - Configured a USGS Earthquake feed for earthquakes with a magnitude of 4.5+ within a 1500km radius.
+
+9. **Google Assistant Integration**:
+   - Added Google Assistant integration with project ID `redwans-smart-home-hub` and exposed domains for `switch`, `light`, `script`, and `input_boolean`.
+
+---
+
 # Home Assistant Configuration
 
-This repository contains the `configuration.yaml` file for a Home Assistant setup. The configuration is designed to provide a robust and feature-rich smart home experience, including automation, monitoring, and integration with various devices and services.
+This repository contains the configuration for a Home Assistant setup. The configuration is designed to provide automation, monitoring, and control capabilities for a smart home environment. Below is a detailed explanation of the configuration.
 
 ---
 
-## Features
-
-### 1. **Default Integrations**
-The `default_config` integration is included to load the default set of Home Assistant integrations. This ensures that basic functionalities such as the frontend, automation, and logging are enabled.
+## Table of Contents
+1. [Default Config](#default-config)
+2. [Frontend Themes](#frontend-themes)
+3. [HTTP Configuration](#http-configuration)
+4. [Dashboard Controls](#dashboard-controls)
+5. [Shell Commands](#shell-commands)
+6. [Command Line Sensors](#command-line-sensors)
+7. [Energy Tracking Engine](#energy-tracking-engine)
+8. [MQTT Integration](#mqtt-integration)
+9. [Recorder Configuration](#recorder-configuration)
+10. [Template Sensors](#template-sensors)
+11. [Zones and Geo-location](#zones-and-geo-location)
+12. [Google Assistant Integration](#google-assistant-integration)
 
 ---
 
-### 2. **Frontend Themes**
-The `frontend` configuration loads custom themes from the `themes` directory. This allows for customization of the Home Assistant user interface.
+## Default Config
+The `default_config` integration is included to load the default set of Home Assistant integrations. Do not remove this section unless you intend to manually configure all integrations.
+
+---
+
+## Frontend Themes
+The `frontend` integration is configured to load custom themes from the `themes` directory. Add your theme files to this folder to customize the appearance of your Home Assistant dashboard.
 
 ```yaml
 frontend:
@@ -21,19 +77,8 @@ frontend:
 
 ---
 
-### 3. **Automation, Scripts, and Scenes**
-The configuration includes separate YAML files for managing automations, scripts, and scenes. These files are referenced using the `!include` directive.
-
-```yaml
-automation: !include automations.yaml
-script: !include scripts.yaml
-scene: !include scenes.yaml
-```
-
----
-
-### 4. **HTTP Configuration**
-The `http` section is configured to support reverse proxy setups and includes a list of trusted proxies.
+## HTTP Configuration
+The HTTP integration is configured to use `x_forwarded_for` and includes a list of trusted proxies. This is useful for setups behind reverse proxies like NGINX.
 
 ```yaml
 http:
@@ -49,236 +94,94 @@ http:
 
 ---
 
-### 5. **Allowlist for External Directories**
-The `homeassistant` section allows access to specific external directories, such as `/config/www`.
+## Dashboard Controls
+An `input_boolean` entity has been added to control the visibility of the Raspberry Pi power history on the dashboard.
 
 ```yaml
-homeassistant:
-  allowlist_external_dirs:
-    - /config/www
+input_boolean:
+  show_pi_power_history:
+    name: "Show Pi Power History"
+    icon: mdi:chart-bar
 ```
 
 ---
 
-### 6. **Shell Commands**
-Custom shell commands are defined for various tasks, including backups, restarting services, and managing flight and helicopter logs.
+## Shell Commands
+Several shell commands are configured for remote operations and log management:
 
-Examples:
-- Trigger Home Assistant backup
-- Restart Nextcloud and CCTV services
-- Export flight data to a CSV file
-- Auto-delete old flight and helicopter logs to retain only the latest 1000 entries
-
-```yaml
-shell_command:
-  run_ha_backup: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."
-  restart_nextcloud: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."
-  restart_cctv: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."
-  export_flight: >
-    sh -c "echo '{{ log_data }}' >> /config/www/flight_history.csv"
-  cleanup_flight_log: >
-    sh -c "tail -n 1000 /config/www/flight_history.csv > /config/www/tmp.csv && mv /config/www/tmp.csv /config/www/flight_history.csv"
-  cleanup_helicopter_log: >
-    sh -c "tail -n 1000 /config/www/helicopter_history.csv > /config/www/tmp_heli.csv && mv /config/www/tmp_heli.csv /config/www/helicopter_history.csv"
-```
+- `run_ha_backup`: Triggers a Home Assistant backup.
+- `restart_nextcloud`: Restarts the Nextcloud service.
+- `restart_cctv`: Restarts the CCTV service.
+- `export_flight`: Exports flight data to a CSV file.
+- `cleanup_flight_log`: Keeps only the latest 1000 lines in the flight log.
+- `cleanup_helicopter_log`: Keeps only the latest 1000 lines in the helicopter log.
 
 ---
 
-### 7. **Command Line Sensors**
-Command-line sensors are configured to monitor specific system metrics, such as:
-- Raspberry Pi fan speed
-- NVMe health
-- CCTV SSD health
+## Command Line Sensors
+Command line sensors are configured to monitor system health and performance:
 
-```yaml
-command_line:
-  - sensor:
-      name: "RPi5 Fan Speed"
-      command: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa redwannabil@127.0.0.1 'cat /sys/devices/platform/cooling_fan/hwmon/hwmon*/fan1_input 2>/dev/null || echo 0'"
-      unit_of_measurement: "RPM"
-      scan_interval: 15
-  - sensor:
-      name: "Main NVMe Health"
-      command: "cat /config/nvme_health.txt"
-      unit_of_measurement: "%"
-      icon: mdi:harddisk
-      scan_interval: 60
-  - sensor:
-      name: "CCTV SSD Health"
-      command: "cat /config/sda_health.txt"
-      unit_of_measurement: "%"
-      icon: mdi:harddisk
-      scan_interval: 60
-```
+- **RPi5 Fan Speed**: Monitors the fan speed of the Raspberry Pi 5.
+- **Main NVMe Health**: Displays the health of the main NVMe drive.
+- **CCTV SSD Health**: Displays the health of the CCTV SSD.
+- **RPi5 Live Power Draw**: Monitors the real-time power consumption of the Raspberry Pi 5.
 
 ---
 
-### 8. **MQTT Integration**
-The MQTT integration is used to monitor room occupancy via a binary sensor.
+## Energy Tracking Engine
+The energy tracking engine calculates the total energy consumption of the Raspberry Pi 5 and tracks daily and monthly electricity usage.
 
-```yaml
-mqtt:
-  binary_sensor:
-    - name: "CSI Room Occupancy"
-      state_topic: "home/room/occupancy"
-      payload_on: "ON"
-      payload_off: "OFF"
-      device_class: occupancy
-```
+- `sensor.rpi5_total_energy`: Tracks total energy consumption in kWh.
+- `utility_meter.rpi5_daily_electricity`: Tracks daily electricity usage.
+- `utility_meter.rpi5_monthly_electricity`: Tracks monthly electricity usage.
 
 ---
 
-### 9. **Recorder Configuration**
-The `recorder` integration is configured to optimize database performance by:
-- Keeping only 2 days of history
-- Committing data every 30 seconds
-- Excluding specific domains and entities from being recorded
+## MQTT Integration
+MQTT sensors and binary sensors are configured for various smart home devices:
 
-```yaml
-recorder:
-  purge_keep_days: 2
-  commit_interval: 30
-  exclude:
-    domains:
-      - sun
-      - weather
-      - camera
-      - update
-    entities:
-      - sensor.time
-      - sensor.date
-```
+### Binary Sensors
+- **CSI Room Occupancy**: Detects occupancy in the CSI room.
+- **Kitchen Emergency Status**: Monitors the kitchen for smoke or fire.
+
+### Sensors
+- **Kitchen Temperature**: Reports the temperature in the kitchen.
+- **Kitchen Humidity**: Reports the humidity in the kitchen.
+- **Kitchen Barometric Pressure**: Reports the barometric pressure in the kitchen.
+- **Kitchen Gas Concentration**: Reports gas concentration in the kitchen.
+- **Kitchen UPS Rail Voltage**: Reports the voltage of the kitchen UPS rail.
 
 ---
 
-### 10. **Template Sensors**
-Custom template sensors are defined for:
-- Logging airspace and helicopter surveillance data
-- Islamic prayer times and related calculations (e.g., active prayer time, time until next event, prayer progress percentage)
-
-```yaml
-template:
-  - trigger:
-      - platform: event
-        event_type: flightradar24_exit
-    sensor:
-      - unique_id: local_airspace_surveillance_history
-        name: "Airspace Surveillance Log (10km)"
-        state: >-
-          ...
-  - trigger:
-      - platform: state
-        entity_id: sensor.flightradar24_helicopters_in_area
-        attribute: flights
-    sensor:
-      - name: "Helicopter Surveillance Log 10km"
-        unique_id: helicopter_surveillance_log_10km
-        icon: mdi:history
-        state: "{{ trigger.to_state.state }}"
-        attributes:
-          flights: >
-            ...
-  - sensor:
-      - name: "Next Sahri Ends"
-        icon: mdi:weather-night
-        state: "{{ states('sensor.islamic_prayer_times_fajr_prayer') }}"
-      - name: "Next Iftar"
-        icon: mdi:weather-sunset-down
-        state: "{{ states('sensor.islamic_prayer_times_maghrib_prayer') }}"
-      - name: "Active Waqt Details"
-        state: >
-          ...
-      - name: "Time Until Next Event Formatted"
-        icon: mdi:timer-sand
-        state: >
-          ...
-      - name: "Waqt Progress Percentage"
-        unit_of_measurement: "%"
-        state: >
-          ...
-```
+## Recorder Configuration
+The recorder integration is configured to retain data for 2 days and exclude certain domains and entities to optimize database size.
 
 ---
 
-### 11. **Notification Services**
-File-based notification services are configured to log flight and helicopter data to CSV files.
+## Template Sensors
+Custom template sensors are configured for advanced functionality:
 
-```yaml
-notify:
-  - name: export_flight_history
-    platform: file
-    filename: /config/www/flight_history.csv
-    timestamp: false
-  - name: helicopter_csv_logger
-    platform: file
-    filename: /config/www/helicopter_history.csv
-    timestamp: false
-```
+- **Islamic Prayer Times**: Displays the next Sahri and Iftar times.
+- **Dynamic Waqt Details**: Provides details about the current Islamic prayer time.
+- **Time Until Next Event Formatted**: Displays a human-readable countdown to the next prayer or event.
+- **Waqt Progress Percentage**: Displays the progress of the current prayer time as a percentage.
+- **Tenda Uptime Formatted**: Displays the uptime of the Tenda router in a human-readable format.
 
 ---
 
-### 12. **Zones**
-A custom zone is defined for a 10km airspace dome, with a specific latitude, longitude, and radius.
-
-```yaml
-zone:
-  - name: "10km Airspace Dome"
-    latitude: 23.6991875
-    longitude: 90.4531719
-    radius: 10000
-    icon: mdi:radar
-```
+## Zones and Geo-location
+- **10km Airspace Dome**: A zone with a 10km radius for airspace monitoring.
+- **USGS Earthquake Feed**: Monitors earthquakes with a magnitude of 4.5+ within a 1500km radius.
 
 ---
 
-### 13. **Geolocation**
-The `geo_location` integration is configured to track earthquakes with a magnitude of 4.5 or higher within a 1500km radius.
+## Google Assistant Integration
+Google Assistant integration is configured with the following settings:
 
-```yaml
-geo_location:
-  - platform: usgs_earthquakes_feed
-    feed_type: "past_week_m45_earthquakes"
-    radius: 1500
-    minimum_magnitude: 4.5
-    latitude: 23.6991875
-    longitude: 90.4531719
-```
+- **Project ID**: `redwans-smart-home-hub`
+- **Service Account**: Included via `SERVICE_ACCOUNT.json`.
+- **Exposed Domains**: `switch`, `light`, `script`, and `input_boolean`.
 
 ---
 
-## Prerequisites
-- Home Assistant installed and running
-- SSH keys configured for remote commands
-- Required directories (`/config/www`, `/config/ssh_keys`, etc.) created
-- MQTT broker configured and running
-- FlightRadar24 integration for flight data
-- Islamic prayer times integration for prayer-related sensors
-
----
-
-## Installation
-1. Clone this repository or copy the `configuration.yaml` file into your Home Assistant configuration directory.
-2. Ensure all referenced files (e.g., `automations.yaml`, `scripts.yaml`, `scenes.yaml`, etc.) exist in the configuration directory.
-3. Place your custom themes in the `themes` folder.
-4. Configure your SSH keys and place them in the `/config/ssh_keys` directory.
-5. Restart Home Assistant to apply the changes.
-
----
-
-## Notes
-- Ensure the IP addresses in the `trusted_proxies` list match your network setup.
-- Update the latitude and longitude values in the `zone` and `geo_location` sections to match your location.
-- Modify the `shell_command` and `command_line` commands as needed to fit your environment.
-
----
-
-## Troubleshooting
-- Check the Home Assistant logs for errors after restarting.
-- Verify that all external files (e.g., `automations.yaml`, `scripts.yaml`, etc.) are correctly formatted and exist.
-- Ensure the MQTT broker is running and accessible.
-- Test SSH commands manually to confirm connectivity and permissions.
-
----
-
-## License
-This configuration is provided under the MIT License. Feel free to use and modify it as needed.
+This configuration enhances the Home Assistant setup with advanced automation, monitoring, and control capabilities. For further customization, refer to the [Home Assistant Documentation](https://www.home-assistant.io/docs/).
