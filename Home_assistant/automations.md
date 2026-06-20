@@ -1,228 +1,159 @@
+# 🚀 Release Notes
+
+### Changes in `automations.yaml`:
+1. **New Automation Added:**
+   - **System: Log Flights to CSV File (`id: '1778989108269'`)**
+     - Logs flight data from `flightradar24_entry` events into a CSV file for record-keeping.
+   - **⚙️ SYSTEM: Auto-Clean Surveillance Databases (`id: '1779008184140'`)**
+     - Automatically trims airplane and helicopter CSV files daily at 3:00 AM to prevent excessive file size.
+   - **⚡🔥🌋 CRITICAL THREAT ALARM (`id: '1779011494115'`)**
+     - Sends high-priority notifications for critical threats such as lightning proximity, hazardous air/fire, and earthquakes. Notifications bypass phone silent mode.
+   - **📡 SENTRY: Space Weather Radio Interruption Warning (`id: '1779029065143'`)**
+     - Alerts when the planetary Kp-Index exceeds 6, indicating potential disruptions to satellite, GPS, and HF communication.
+   - **🛰️ SENTRY: ISS Overhead Alert (`id: '1779192276256'`)**
+     - Notifies when the International Space Station (ISS) is overhead and visible from Dhaka.
+   - **🚁 SYSTEM: Log Helicopter to CSV Archive (`id: '1779279092548'`)**
+     - Logs new helicopter arrivals to the local system log for tracking and analysis.
+
+2. **Enhancements to Existing Automations:**
+   - No changes were made to the existing automations.
+
+---
+
 # Home Assistant Automations
 
-This document provides a detailed explanation of the automations defined in the `automations.yaml` file for Home Assistant. Each automation is designed to enhance the functionality of the Home Assistant setup by providing notifications, logging events, and automating system maintenance tasks.
+This document provides an overview of the automations configured in the `automations.yaml` file for the Home Assistant instance. These automations are designed to enhance home automation, security, and monitoring capabilities.
 
 ---
 
 ## Table of Contents
-
-1. [IUT Home Notification](#iut-home-notification)
-2. [Home Assistant Update Notification](#home-assistant-update-notification)
-3. [Critical Airspace Alert: Helicopters & Military Aircraft](#critical-airspace-alert-helicopters--military-aircraft)
-4. [System: Log Flights to CSV File](#system-log-flights-to-csv-file)
-5. [System: Auto-Clean Surveillance Databases](#system-auto-clean-surveillance-databases)
-6. [Critical Threat Alarm](#critical-threat-alarm)
-7. [Space Weather Radio Interruption Warning](#space-weather-radio-interruption-warning)
-8. [ISS Overhead Alert](#iss-overhead-alert)
-9. [System: Log Helicopter to CSV Archive](#system-log-helicopter-to-csv-archive)
-
----
-
-## IUT Home Notification
-
-**ID:** `1776752047278`  
-**Alias:** IUT home  
-**Description:** Sends a notification when a specific person (`person.redwan_s_home`) leaves the `zone.iut_home`.
-
-### Configuration
-- **Blueprint:** `homeassistant/notify_leaving_zone.yaml`
-- **Inputs:**
-  - `person_entity`: `person.redwan_s_home`
-  - `zone_entity`: `zone.iut_home`
-  - `notify_device`: `439bbeccddde0413130e97a847e10794`
+1. [Automations Overview](#automations-overview)
+2. [Automation Details](#automation-details)
+   - [IUT Home](#iut-home)
+   - [Home Assistant Update](#home-assistant-update)
+   - [Critical Airspace Alert: Heli & Military (5km)](#critical-airspace-alert-heli--military-5km)
+   - [System: Log Flights to CSV File](#system-log-flights-to-csv-file)
+   - [⚙️ SYSTEM: Auto-Clean Surveillance Databases](#️-system-auto-clean-surveillance-databases)
+   - [⚡🔥🌋 CRITICAL THREAT ALARM](#️-critical-threat-alarm)
+   - [📡 SENTRY: Space Weather Radio Interruption Warning](#-sentry-space-weather-radio-interruption-warning)
+   - [🛰️ SENTRY: ISS Overhead Alert](#️-sentry-iss-overhead-alert)
+   - [🚁 SYSTEM: Log Helicopter to CSV Archive](#-system-log-helicopter-to-csv-archive)
 
 ---
 
-## Home Assistant Update Notification
+## Automations Overview
 
-**ID:** `1776778529372`  
-**Alias:** Home assistant update  
-**Description:** Notifies the user when a new Home Assistant update is available.
-
-### Triggers
-- **Trigger Type:** State change
-- **Entity:** `sensor.home_assistant_version_current_version`
-- **To State:** `on`
-
-### Actions
-- **Notification:**
-  - **Device:** `mobile_app_redwan_s_s23`
-  - **Title:** `Home assistant Update Alert`
-  - **Message:** 🚨 A new Home Assistant update is available! Check the release notes to see if you want to install it.
+This configuration includes automations for:
+- Geofencing notifications.
+- Home Assistant update alerts.
+- Airspace monitoring for helicopters and military aircraft.
+- Logging flight and helicopter data to CSV files.
+- Automated cleanup of surveillance logs.
+- High-priority alerts for critical environmental threats.
+- Space weather warnings for radio and satellite disruptions.
+- Notifications for International Space Station (ISS) visibility.
 
 ---
 
-## Critical Airspace Alert: Helicopters & Military Aircraft
+## Automation Details
 
-**ID:** `1778964460052`  
-**Alias:** Critical Airspace Alert: Heli & Military (5km)  
-**Description:** Sends an alert when a helicopter or military aircraft is detected within 5 km.
-
-### Triggers
-- **Event Type:** `flightradar24_entry`
-
-### Conditions
-- **Distance:** `<= 5.0 km`
-- **Aircraft Type or Airline:**
-  - Aircraft model contains `helicopter`, `bell`, `robinson`, or `aw1`
-  - Airline contains `air force`, `military`, `army`, or `navy`
-
-### Actions
-- **Notification:**
-  - **Device:** `mobile_app_redwan_s_s23`
-  - **Title:** `🚨 Airspace Intrusion Detected`
-  - **Message:** Includes details about the detected aircraft, such as airline, model, distance, altitude, and speed.
-  - **Additional Data:**
-    - `ttl`: `0`
-    - `priority`: `high`
-    - `channel`: `alarm_stream`
-    - `url`: Link to the aircraft's Flightradar24 page
-    - `image`: Aircraft photo
+### IUT Home
+- **ID:** `1776752047278`
+- **Description:** Sends a notification when the person `redwan_s_home` leaves the `zone.iut_home`.
+- **Trigger:** Leaving the `zone.iut_home`.
+- **Action:** Sends a notification to the device with ID `439bbeccddde0413130e97a847e10794`.
 
 ---
 
-## System: Log Flights to CSV File
+### Home Assistant Update
+- **ID:** `1776778529372`
+- **Description:** Notifies when a new Home Assistant update is available.
+- **Trigger:** State change of `sensor.home_assistant_version_current_version` to `on`.
+- **Action:** Sends a notification to `mobile_app_redwan_s_s23` with an update alert.
 
-**ID:** `1778989108269`  
-**Alias:** System: Log Flights to CSV File  
-**Description:** Logs flight data to a CSV file whenever a new flight is detected.
+---
 
-### Triggers
-- **Event Type:** `flightradar24_entry`
+### Critical Airspace Alert: Heli & Military (5km)
+- **ID:** `1778964460052`
+- **Description:** Sends an alert when a helicopter or military aircraft is detected within 5km.
+- **Trigger:** `flightradar24_entry` event with a distance of 5km or less.
+- **Conditions:**
+  - Aircraft model contains keywords like "helicopter," "bell," "robinson," or "aw1."
+  - Airline contains keywords like "air force," "military," "army," or "navy."
+- **Action:** Sends a high-priority notification to `mobile_app_redwan_s_s23` with details about the aircraft.
 
-### Actions
-- **Shell Command:** `shell_command.export_flight`
-- **Data Logged:**
+---
+
+### System: Log Flights to CSV File
+- **ID:** `1778989108269`
+- **Description:** Logs flight data from `flightradar24_entry` events into a CSV file.
+- **Trigger:** `flightradar24_entry` event.
+- **Action:** Executes `shell_command.export_flight` to log flight data, including:
   - Timestamp
   - Callsign
   - Aircraft model
   - Airline short name
-  - Origin city
-  - Destination city
+  - Origin and destination cities
   - Closest distance
 
 ---
 
-## System: Auto-Clean Surveillance Databases
-
-**ID:** `1779008184140`  
-**Alias:** ⚙️ SYSTEM: Auto-Clean Surveillance Databases  
-**Description:** Automatically trims the airplane and helicopter CSV files daily at 3:00 AM to prevent them from growing too large.
-
-### Triggers
-- **Trigger Type:** Time
-- **Time:** `03:00:00`
-
-### Actions
-- **Shell Commands:**
-  - `shell_command.cleanup_flight_log`
-  - `shell_command.cleanup_helicopter_log`
+### ⚙️ SYSTEM: Auto-Clean Surveillance Databases
+- **ID:** `1779008184140`
+- **Description:** Automatically trims airplane and helicopter CSV files daily to prevent excessive file size.
+- **Trigger:** Time-based trigger at 03:00:00.
+- **Actions:**
+  - Executes `shell_command.cleanup_flight_log`.
+  - Executes `shell_command.cleanup_helicopter_log`.
 
 ---
 
-## Critical Threat Alarm
-
-**ID:** `1779011494115`  
-**Alias:** ⚡🔥🌋 CRITICAL THREAT ALARM  
-**Description:** Sends high-priority notifications for critical threats such as lightning, hazardous air quality, or earthquakes. Notifications bypass phone silent mode.
-
-### Triggers
-1. **Lightning Proximity:**  
-   - **Entity:** `sensor.redwan_s_home_lightning_distance`
-   - **Condition:** Distance below 5 km
-2. **Hazardous Air Quality:**  
-   - **Entity:** `sensor.dhaka_us_consulate_bangladesh_pm2_5`
-   - **Condition:** PM2.5 above 200
-3. **Earthquake Detection:**  
-   - **Source:** `usgs_earthquakes_feed`
-   - **Zone:** `zone.dhaka_city`
-   - **Event:** `enter`
-
-### Actions
-- **Lightning Alert:**
-  - **Devices:** `mobile_app_redwan_s_s23`, `mobile_app_ahlia_s_redmi_note_8`
-  - **Title:** ⚡ DANGER: LIGHTNING PROXIMITY
-  - **Message:** Lightning detected within 5 km! Protect servers from power surge.
-- **Fire Alert:**
-  - **Devices:** `mobile_app_redwan_s_s23`, `mobile_app_ahlia_s_redmi_note_8`
-  - **Title:** 🔥 DANGER: HAZARDOUS AIR/FIRE
-  - **Message:** Massive PM2.5 spike detected at US Consulate. Possible urban fire nearby.
-- **Earthquake Alert:**
-  - **Devices:** `mobile_app_redwan_s_s23`, `mobile_app_ahlia_s_redmi_note_8`
-  - **Title:** 🌋 CRITICAL: EARTHQUAKE DETECTED
-  - **Message:** A seismic event has just struck the Dhaka region! Take cover immediately!
-  - **Additional Data:**
-    - `vibrationPattern`: `100, 1000, 100, 1000, 100, 1000`
+### ⚡🔥🌋 CRITICAL THREAT ALARM
+- **ID:** `1779011494115`
+- **Description:** Sends high-priority notifications for critical environmental threats, bypassing phone silent mode.
+- **Triggers:**
+  - Lightning detected within 5km (`sensor.redwan_s_home_lightning_distance`).
+  - PM2.5 levels above 200 at US Consulate (`sensor.dhaka_us_consulate_bangladesh_pm2_5`).
+  - Earthquake detected in Dhaka region (`usgs_earthquakes_feed`).
+- **Actions:**
+  - Sends high-priority notifications to `mobile_app_redwan_s_s23` and `mobile_app_ahlia_s_redmi_note_8` with specific messages for each threat type.
 
 ---
 
-## Space Weather Radio Interruption Warning
-
-**ID:** `1779029065143`  
-**Alias:** 📡 SENTRY: Space Weather Radio Interruption Warning  
-**Description:** Sends a notification when the Planetary Kp-Index exceeds level 6, indicating a solar storm.
-
-### Triggers
-- **Entity:** `sensor.planetary_k_index`
-- **Condition:** Value above 6
-
-### Actions
-- **Notification:**
-  - **Device:** `mobile_app_redwan_s_s23`
-  - **Title:** ☀️ CRITICAL: SOLAR STORM DETECTED
-  - **Message:** Kp-Index has breached level 6. Potential degradation to satellite, GPS, and HF communication infrastructure.
-  - **Additional Data:**
-    - `priority`: `high`
-    - `channel`: `alarm_stream`
+### 📡 SENTRY: Space Weather Radio Interruption Warning
+- **ID:** `1779029065143`
+- **Description:** Alerts when the planetary Kp-Index exceeds 6, indicating potential disruptions to satellite, GPS, and HF communication.
+- **Trigger:** `sensor.planetary_k_index` exceeds 6.
+- **Action:** Sends a high-priority notification to `mobile_app_redwan_s_s23` with details about the solar storm.
 
 ---
 
-## ISS Overhead Alert
-
-**ID:** `1779192276256`  
-**Alias:** 🛰️ SENTRY: ISS Overhead Alert  
-**Description:** Notifies the user when the International Space Station (ISS) is visible over Dhaka.
-
-### Triggers
-- **Trigger Type:** State change
-- **Entity:** `binary_sensor.iss`
-- **From State:** `off`
-- **To State:** `on`
-
-### Actions
-- **Notification:**
-  - **Device:** `mobile_app_redwan_s_s23`
-  - **Title:** 🛰️ ISS OVERHEAD NOW!
-  - **Message:** The International Space Station is currently passing over Dhaka! Go outside and look up.  
-    Includes the number of humans currently in orbit.
-  - **Additional Data:**
-    - `ttl`: `0`
-    - `priority`: `high`
-    - `importance`: `high`
-    - `channel`: `iss_tracker`
-    - `vibrationPattern`: `0, 400, 200, 400, 1000, 400, 200, 400`
+### 🛰️ SENTRY: ISS Overhead Alert
+- **ID:** `1779192276256`
+- **Description:** Notifies when the International Space Station (ISS) is overhead and visible from Dhaka.
+- **Trigger:** State change of `binary_sensor.iss` from `off` to `on`.
+- **Action:** Sends a high-priority notification to `mobile_app_redwan_s_s23` with details about the ISS and the number of humans currently in orbit.
 
 ---
 
-## System: Log Helicopter to CSV Archive
+### 🚁 SYSTEM: Log Helicopter to CSV Archive
+- **ID:** `1779279092548`
+- **Description:** Logs new helicopter arrivals to the local system log.
+- **Trigger:** State change of `sensor.helicopter_surveillance_log_10km`.
+- **Condition:** Ensures that the new helicopter is not already logged.
+- **Action:** Writes helicopter data to the system log, including:
+  - Timestamp
+  - Callsign
+  - Aircraft model
+  - Airline short name
+  - Origin and destination cities
+  - Distance
+  - Altitude
+  - Ground speed
 
-**ID:** `1779279092548`  
-**Alias:** 🚁 SYSTEM: Log Helicopter to CSV Archive  
-**Description:** Logs new helicopter arrivals to a local system log.
-
-### Triggers
-- **Entity:** `sensor.helicopter_surveillance_log_10km`
-- **Condition:** A new helicopter is detected, and it is not already logged.
-
-### Actions
-- **System Log:**
-  - **Level:** Warning
-  - **Message:** Logs details about the helicopter, including timestamp, callsign, aircraft model, airline, origin city, destination city, distance, altitude, and ground speed.
-
---- 
+---
 
 ## Notes
-- All automations are configured with specific triggers, conditions, and actions to ensure accurate and timely notifications or actions.
-- Notifications are sent to the specified mobile devices using the Home Assistant mobile app.
-- Critical alerts are configured to bypass silent mode and use high-priority notification channels.
-- CSV logging and database cleanup ensure efficient storage management for flight and helicopter data.
+- Ensure that all `shell_command` scripts referenced in the automations are properly configured in the `configuration.yaml` file.
+- Test each automation after deployment to verify proper functionality.
+- For critical alerts, ensure that mobile devices have notifications enabled for the Home Assistant app and that the app is configured to handle high-priority notifications.
