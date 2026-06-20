@@ -1,0 +1,11 @@
+[Unit]
+Description=Raspberry Pi Hardware Telemetry Agent
+After=network.target
+
+[Service]
+ExecStart=/bin/bash /home/redwannabil/pi_telemetry.sh
+Restart=always
+User=redwannabil
+
+[Install]
+WantedBy=multi-user.target
