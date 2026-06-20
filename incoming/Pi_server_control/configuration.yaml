@@ -1,0 +1,71 @@
+ # Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - "::1"
+    - 172.17.0.2
+    - 172.17.0.0/16
+    - 192.168.0.0/16
+    - 10.0.0.0/8
+
+# homeassistant:
+#   allowlist_external_dirs:
+#     - "/media/cctv"
+shell_command:
+  # Trigger backup in the background so it never times out!
+  run_ha_backup: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa redwannabil@127.0.0.1 'nohup bash /home/redwannabil/ha_backup.sh > /dev/null 2>&1 &'"
+  
+  # God Mode: Restart Nextcloud container (Force kill after 5 seconds)
+  restart_nextcloud: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa redwannabil@127.0.0.1 'docker restart -t 5 nextcloud'"
+  
+  # God Mode: Restart CCTV container (Force kill after 5 seconds)
+  restart_cctv: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa redwannabil@127.0.0.1 'docker restart -t 5 motioneye'"
+command_line:
+  - sensor:
+      name: "RPi5 Fan Speed"
+      command: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa redwannabil@127.0.0.1 'cat /sys/devices/platform/cooling_fan/hwmon/hwmon*/fan1_input 2>/dev/null || echo 0'"
+      unit_of_measurement: "RPM"
+      scan_interval: 15
+  - sensor:
+      name: "Main NVMe Health"
+      command: "cat /config/nvme_health.txt"
+      unit_of_measurement: "%"
+      icon: mdi:harddisk
+      scan_interval: 60
+      
+  - sensor:
+      name: "CCTV SSD Health"
+      command: "cat /config/sda_health.txt"
+      unit_of_measurement: "%"
+      icon: mdi:harddisk
+      scan_interval: 60
+mqtt:
+  binary_sensor:
+    - name: "CSI Room Occupancy"
+      state_topic: "home/room/occupancy"
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: occupancy
+recorder:
+  purge_keep_days: 2 # Only keep 2 days of history instead of 10
+  commit_interval: 30 # Group writes together every 30 seconds
+  exclude:
+    domains:
+      - sun
+      - weather
+      - camera
+      - update
+    entities:
+      - sensor.time
+      - sensor.date
