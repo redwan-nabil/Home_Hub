@@ -1,162 +1,102 @@
-# pi_telemetry.sh
+# pi_telemetry.service
 
 ## Overview
-
-`pi_telemetry.sh` is a Bash script designed to continuously monitor and log telemetry data from a Raspberry Pi device. The script collects two key metrics:
-
-1. **Fan Speed**: Reads the current speed of the cooling fan.
-2. **Power Draw**: Calculates the power consumption of the Raspberry Pi using native Python math and the `vcgencmd` tool.
-
-The script runs in an infinite loop, collecting data every 15 seconds and saving it to text files for further analysis or integration with other systems, such as Home Assistant.
-
----
+The `pi_telemetry.service` is a systemd service designed to run a Raspberry Pi hardware telemetry agent. This service executes a script (`pi_telemetry.sh`) that collects and processes telemetry data from the Raspberry Pi hardware. The service ensures that the telemetry script runs continuously and restarts automatically in case of failure.
 
 ## Features
-
-- **Fan Speed Monitoring**: Reads the fan speed from the system hardware and logs it to a file.
-- **Power Draw Calculation**: Uses Python to calculate the power draw based on current and voltage readings from the Raspberry Pi's PMIC (Power Management IC).
-- **Continuous Monitoring**: Runs indefinitely, collecting data every 15 seconds.
-- **Output to Files**: Saves the telemetry data to text files for easy access and integration.
-
----
+- **Automatic Startup**: The service starts automatically after the network becomes available.
+- **Continuous Operation**: The service is configured to restart automatically if it stops or crashes.
+- **User-Specific Execution**: Runs under the `redwannabil` user account for security and isolation.
+- **Multi-User Target**: The service is enabled for the multi-user target, ensuring it runs in a non-graphical environment.
 
 ## Prerequisites
-
-### Hardware
-- Raspberry Pi with a cooling fan connected.
-- Raspberry Pi with PMIC support for power draw calculations.
-
-### Software
-- Bash shell (default on Raspberry Pi OS).
-- Python 3 installed on the system.
-- `vcgencmd` command-line tool (included with Raspberry Pi firmware).
-
----
+Before enabling and starting the service, ensure the following:
+1. The `pi_telemetry.sh` script is located at `/home/redwannabil/pi_telemetry.sh`.
+2. The script has executable permissions (`chmod +x /home/redwannabil/pi_telemetry.sh`).
+3. The `redwannabil` user exists on the system and has the necessary permissions to execute the script.
 
 ## Installation
 
-1. **Clone the Repository**:
+### Step 1: Create the Service File
+1. Navigate to the systemd service directory:
    ```bash
-   git clone <repository-url>
-   cd Home_assistant
+   sudo nano /etc/systemd/system/pi_telemetry.service
+   ```
+2. Copy and paste the following content into the file:
+   ```ini
+   [Unit]
+   Description=Raspberry Pi Hardware Telemetry Agent
+   After=network.target
+
+   [Service]
+   ExecStart=/bin/bash /home/redwannabil/pi_telemetry.sh
+   Restart=always
+   User=redwannabil
+
+   [Install]
+   WantedBy=multi-user.target
    ```
 
-2. **Set Permissions**:
-   Ensure the script has executable permissions:
-   ```bash
-   chmod +x pi_telemetry.sh
-   ```
+3. Save and exit the file.
 
-3. **Configure Output Directory**:
-   By default, the script saves telemetry data to `/home/redwannabil/homeassistant/`. Ensure this directory exists or modify the script to use a different directory.
+### Step 2: Reload Systemd
+Reload the systemd manager configuration to recognize the new service:
+```bash
+sudo systemctl daemon-reload
+```
 
----
+### Step 3: Enable the Service
+Enable the service to start automatically on boot:
+```bash
+sudo systemctl enable pi_telemetry.service
+```
+
+### Step 4: Start the Service
+Start the service immediately:
+```bash
+sudo systemctl start pi_telemetry.service
+```
 
 ## Usage
 
-To start the telemetry monitoring, run the script:
-
+### Check Service Status
+To verify the status of the service:
 ```bash
-./pi_telemetry.sh
+sudo systemctl status pi_telemetry.service
 ```
 
-The script will begin collecting data and saving it to the following files:
-- `fan_speed.txt`: Contains the current fan speed in RPM (or `0` if the fan is not detected).
-- `power_draw.txt`: Contains the calculated power draw in watts.
-
----
-
-## File Outputs
-
-### `fan_speed.txt`
-This file contains the current fan speed in RPM. If the fan is not detected, the value will be `0`.
-
-Example:
-```
-1200
-```
-
-### `power_draw.txt`
-This file contains the calculated power draw in watts, based on the current and voltage readings from the PMIC.
-
-Example:
-```
-5.23
-```
-
----
-
-## Script Details
-
-### Fan Speed Monitoring
-The script reads the fan speed using the following command:
+### Stop the Service
+To stop the service:
 ```bash
-cat /sys/devices/platform/cooling_fan/hwmon/hwmon*/fan1_input
+sudo systemctl stop pi_telemetry.service
 ```
-If the fan is not detected, it defaults to `0`.
 
-### Power Draw Calculation
-The script uses Python to calculate the power draw. It reads current and voltage values from the PMIC using the `vcgencmd pmic_read_adc` command. The formula used for power calculation is:
+### Restart the Service
+To restart the service:
+```bash
+sudo systemctl restart pi_telemetry.service
 ```
-Power (W) = Σ (Current * Voltage) * 1.1451 + 0.5879
+
+### Disable the Service
+To disable the service from starting on boot:
+```bash
+sudo systemctl disable pi_telemetry.service
 ```
-This formula includes scaling and offset adjustments for accurate readings.
 
-### Loop Interval
-The script runs in an infinite loop, collecting data every 15 seconds using the `sleep 15` command.
-
----
+## Logs
+The service logs can be viewed using the `journalctl` command:
+```bash
+sudo journalctl -u pi_telemetry.service
+```
 
 ## Troubleshooting
-
-### Fan Speed Issues
-- Ensure the cooling fan is properly connected to the Raspberry Pi.
-- Verify the presence of the `/sys/devices/platform/cooling_fan/hwmon/hwmon*/fan1_input` file.
-
-### Power Draw Issues
-- Ensure the `vcgencmd` tool is installed and accessible.
-- Verify that your Raspberry Pi supports PMIC telemetry.
-
-### Permission Errors
-If you encounter permission errors, ensure the script has executable permissions:
-```bash
-chmod +x pi_telemetry.sh
-```
-
----
-
-## Customization
-
-### Change Output Directory
-To change the directory where telemetry data is saved, modify the paths in the script:
-```bash
-/home/redwannabil/homeassistant/fan_speed.txt
-/home/redwannabil/homeassistant/power_draw.txt
-```
-Replace `/home/redwannabil/homeassistant/` with your desired directory.
-
-### Adjust Loop Interval
-To change the data collection interval, modify the `sleep` command:
-```bash
-sleep 15
-```
-Replace `15` with the desired number of seconds.
-
----
+- **Script Not Found**: Ensure the `pi_telemetry.sh` script exists at `/home/redwannabil/pi_telemetry.sh` and has executable permissions.
+- **User Permissions**: Verify that the `redwannabil` user has the necessary permissions to execute the script.
+- **Service Fails to Start**: Check the logs using `journalctl` for detailed error messages.
 
 ## Notes
-
-- This script is designed to run indefinitely. To stop it, use `Ctrl+C` or terminate the process manually.
-- Ensure your Raspberry Pi has sufficient permissions to access hardware telemetry files and execute the `vcgencmd` command.
-
----
+- The service is dependent on the network being available (`After=network.target`). Ensure the network is properly configured on the Raspberry Pi.
+- If modifications are made to the service file, always reload the systemd manager configuration using `sudo systemctl daemon-reload`.
 
 ## License
-
-This script is provided under the [MIT License](https://opensource.org/licenses/MIT). Feel free to modify and distribute it as needed.
-
----
-
-## Author
-
-Developed by [Your Name]. For questions or support, please contact [Your Email].
+This service file is provided as-is and can be modified to suit your specific requirements. Ensure proper testing before deploying in production environments.
