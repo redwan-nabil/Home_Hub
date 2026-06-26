@@ -14,7 +14,7 @@
    - Added new sensors for tracking energy usage of additional devices:
      - `Redwan's S23 Total Energy`
      - `Redwan's S10 FE Total Energy`
-     - `Ahlia's Note 8 Total Energy`
+     
 
 4. **Utility Meter Updates**:
    - Added daily and monthly electricity tracking for `Predator`.
