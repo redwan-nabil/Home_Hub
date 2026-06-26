@@ -1,241 +1,127 @@
 # 🚀 Release Notes
 
-### Changes in `configuration.yaml`:
-1. **New Shell Commands Added**:
-   - `cleanup_helicopter_log`: Added for managing helicopter log files.
+### Changes in `configuration.yaml`
+The following updates and additions have been made to the `configuration.yaml` file:
 
-2. **New Command Line Sensors**:
-   - Added sensors for monitoring live power draw and health of various devices:
-     - `RPi5 Live Power Draw`
-     - `Main NVMe Health`
-     - `CCTV SSD Health`
+1. **Shell Commands**:
+   - Updated the `export_flight` shell command to use a more secure and robust syntax for handling single quotes in `log_data`.
 
-3. **Energy Tracking Enhancements**:
-   - Added new sensors for tracking energy usage of additional devices:
-     - `Redwan's S23 Total Energy`
-     - `Redwan's S10 FE Total Energy`
-     
+2. **Command Line Sensors**:
+   - No changes were made to the existing command line sensors.
 
-4. **Utility Meter Updates**:
-   - Added daily and monthly electricity tracking for `Predator`.
+3. **Energy Tracking Engine**:
+   - No changes were made to the energy tracking sensors or utility meters.
 
-5. **MQTT Integration**:
-   - Added binary sensors for room occupancy and kitchen emergency status.
-   - Added sensors for kitchen environment monitoring:
-     - Temperature, humidity, barometric pressure, gas concentration, and UPS rail voltage.
+4. **MQTT Sensors**:
+   - No changes were made to the MQTT configuration.
 
-6. **Recorder Configuration**:
-   - Excluded additional entities from being recorded:
-     - `sensor.helicopter_surveillance_log_10km`
+5. **Recorder**:
+   - No changes were made to the recorder configuration.
 
-7. **Advanced Template Sensors**:
-   - Added new template sensors:
-     - `Helicopter Surveillance Log 10km`
-     - `Tenda Uptime Formatted`
-     - `Time Until Next Event Formatted`
-     - `Waqt Progress Percentage`
+6. **Template Sensors**:
+   - Updated the `Tenda Uptime Formatted` template sensor to include a fallback mechanism for handling unavailable, unknown, or invalid uptime values. This ensures the sensor displays "Offline" when the uptime data is not available or invalid.
 
-8. **External Services**:
-   - No changes in external services configuration.
+7. **External Services**:
+   - No changes were made to the external services configuration.
 
 ---
 
 # Home Assistant Configuration
 
-This repository contains the `configuration.yaml` file for a Home Assistant setup. The configuration includes integrations, sensors, automations, and external services to enhance the functionality of your smart home system.
+This repository contains the configuration for a Home Assistant instance. The configuration is designed to provide a robust and feature-rich smart home experience, including automation, energy tracking, MQTT integration, advanced template sensors, and external service integrations.
 
-## Table of Contents
-- [Default Configurations](#default-configurations)
-- [Frontend Themes](#frontend-themes)
-- [HTTP Configuration](#http-configuration)
-- [Dashboard Controls](#dashboard-controls)
-- [Shell Commands](#shell-commands)
-- [Command Line Sensors](#command-line-sensors)
-- [Energy Tracking](#energy-tracking)
-- [MQTT Integration](#mqtt-integration)
-- [Recorder Configuration](#recorder-configuration)
-- [Advanced Template Sensors](#advanced-template-sensors)
-- [External Services](#external-services)
+## Features
 
----
+### Default Configuration
+The `default_config` integration is included to load the default set of integrations provided by Home Assistant.
 
-## Default Configurations
-The `default_config` integration is loaded to include the default set of Home Assistant integrations.
+### Frontend Themes
+Custom themes are loaded from the `themes` directory using the `!include_dir_merge_named` directive.
 
----
+### Automation, Scripts, and Scenes
+Automations, scripts, and scenes are included from their respective YAML files:
+- `automations.yaml`
+- `scripts.yaml`
+- `scenes.yaml`
 
-## Frontend Themes
-Custom themes are loaded from the `themes` directory using:
-```yaml
-frontend:
-  themes: !include_dir_merge_named themes
-```
+### HTTP Configuration
+- **`use_x_forwarded_for`**: Enabled to allow the use of the `X-Forwarded-For` header.
+- **`trusted_proxies`**: Configured to include local and private IP ranges for trusted proxies.
 
----
+### Home Assistant Configuration
+- **`allowlist_external_dirs`**: Allows access to the `/config/www` directory for external files.
 
-## HTTP Configuration
-The HTTP component is configured to use `X-Forwarded-For` headers and includes a list of trusted proxies:
-```yaml
-http:
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - 127.0.0.1
-    - "::1"
-    - 172.17.0.2
-    - 172.17.0.0/16
-    - 192.168.0.0/16
-    - 10.0.0.0/8
-```
+### Dashboard Controls
+- **`input_boolean.show_pi_power_history`**: A toggle to show or hide Raspberry Pi power history on the dashboard.
 
----
+### Shell Commands
+- Various shell commands are defined for remote operations, including:
+  - Running Home Assistant backups.
+  - Restarting Nextcloud and CCTV services.
+  - Exporting and cleaning flight and helicopter logs.
 
-## Dashboard Controls
-An `input_boolean` is defined to toggle the display of Raspberry Pi power history:
-```yaml
-input_boolean:
-  show_pi_power_history:
-    name: "Show Pi Power History"
-    icon: mdi:chart-bar
-```
+### Command Line Sensors
+- Sensors to monitor hardware and system metrics:
+  - Raspberry Pi 5 fan speed.
+  - Main NVMe health.
+  - CCTV SSD health.
+  - Raspberry Pi 5 live power draw.
 
----
+### Energy Tracking Engine
+- **Integration Sensors**: Tracks total energy consumption for various devices.
+- **Utility Meters**: Provides daily and monthly electricity usage for Raspberry Pi 5 and Predator devices.
 
-## Shell Commands
-Shell commands are defined for various tasks, including:
-- Running backups
-- Restarting services (e.g., Nextcloud, CCTV)
-- Managing flight and helicopter logs
-- Example:
-  ```yaml
-  shell_command:
-    cleanup_helicopter_log: >
-      tail -n 1000 /config/www/helicopter_history.csv > /config/www/tmp_heli.csv && mv /config/www/tmp_heli.csv /config/www/helicopter_history.csv
-  ```
+### MQTT Integration
+- **Binary Sensors**:
+  - CSI room occupancy.
+  - Kitchen emergency status.
+- **Sensors**:
+  - Kitchen temperature, humidity, barometric pressure, gas concentration, and UPS rail voltage.
 
----
+### System Recorder & Database
+- Configured to retain data for 2 days.
+- Excludes specific domains and entities to optimize database size.
 
-## Command Line Sensors
-Command line sensors are used to monitor system health and performance:
-- Raspberry Pi fan speed
-- NVMe and SSD health
-- Live power draw of Raspberry Pi
-- Example:
-  ```yaml
-  - sensor:
-      name: "RPi5 Fan Speed"
-      command: "cat /config/fan_speed.txt"
-      unit_of_measurement: "RPM"
-      scan_interval: 15
-      value_template: "{{ value | float(0) }}"
-  ```
+### Advanced Template Sensors
+- **Fasting Times**:
+  - `Next Sahri Ends` and `Next Iftar` sensors for Islamic prayer times.
+- **Dynamic Waqt & Prohibited Time Logic**:
+  - `Active Waqt Details` sensor to display the current Islamic prayer time or prohibited time.
+- **Human-Readable Countdown**:
+  - `Time Until Next Event Formatted` sensor for countdown to the next prayer or event.
+- **Gauge Percentage**:
+  - `Waqt Progress Percentage` sensor to display the progress of the current prayer time as a percentage.
+- **Router Uptime Formatter**:
+  - `Tenda Uptime Formatted` sensor with improved error handling for unavailable or invalid uptime data.
+- **Predator Live Power Estimation**:
+  - `Predator Live Power Draw` sensor to estimate power consumption based on CPU and GPU load.
+
+### External Services
+- **Zone**:
+  - Defined a 10km airspace dome with specific latitude and longitude.
+- **Geo-location**:
+  - Configured to track earthquakes with a magnitude of 4.5 or higher within a 1500km radius.
+- **REST Commands**:
+  - Commands to pause and resume all torrents on a qBittorrent instance.
+- **Google Assistant Integration**:
+  - Configured for integration with Google Assistant, exposing specific domains.
 
 ---
 
-## Energy Tracking
-Energy usage is tracked using integration sensors and utility meters:
-- Devices tracked include Raspberry Pi, Predator, and mobile devices.
-- Example:
-  ```yaml
-  sensor:
-    - platform: integration
-      source: sensor.rpi5_live_power_draw
-      name: "RPi5 Total Energy"
-      unique_id: rpi5_total_energy_tracker_unique
-      unit_prefix: k
-      round: 3
-      method: left
-  ```
+## Installation
+
+1. Clone this repository into your Home Assistant configuration directory.
+2. Ensure all required directories (`themes`, `www`, etc.) exist and are populated as needed.
+3. Update the `SERVICE_ACCOUNT.json` file for Google Assistant integration.
+4. Restart your Home Assistant instance to apply the changes.
 
 ---
 
-## MQTT Integration
-MQTT sensors and binary sensors are configured for real-time data monitoring:
-- Room occupancy and kitchen emergency status.
-- Kitchen environment metrics (temperature, humidity, gas concentration, etc.).
-- Example:
-  ```yaml
-  mqtt:
-    binary_sensor:
-      - name: "CSI Room Occupancy"
-        state_topic: "home/room/occupancy"
-        payload_on: "ON"
-        payload_off: "OFF"
-        device_class: occupancy
-    sensor:
-      - name: "Kitchen Temperature"
-        state_topic: "home/sensors/kitchen"
-        value_template: "{{ value_json.temp | round(1) }}"
-        unit_of_measurement: "°C"
-        device_class: temperature
-        state_class: measurement
-  ```
+## Notes
 
----
+- Ensure that the `ssh_keys` directory contains the necessary SSH keys for the shell commands to function.
+- Verify that the IP addresses listed under `trusted_proxies` in the `http` section match your network configuration.
+- Update the latitude and longitude values in the `zone` and `geo_location` sections to match your location.
+- The `Tenda Uptime Formatted` sensor now includes fallback logic to handle unavailable or invalid uptime data, displaying "Offline" in such cases.
 
-## Recorder Configuration
-The recorder is configured to purge data older than 2 days and exclude specific domains and entities:
-```yaml
-recorder:
-  purge_keep_days: 2
-  commit_interval: 30
-  exclude:
-    domains:
-      - sun
-      - weather
-      - camera
-      - update
-    entities:
-      - sensor.time
-      - sensor.date
-      - sensor.airspace_surveillance_log_10km
-      - sensor.helicopter_surveillance_log_10km
-```
-
----
-
-## Advanced Template Sensors
-Template sensors provide advanced functionality, including:
-- Dynamic prayer times and prohibited time logic.
-- Router uptime formatting.
-- Power estimation for Predator device.
-- Example:
-  ```yaml
-  template:
-    - sensor:
-        - name: "Waqt Progress Percentage"
-          unit_of_measurement: "%"
-          state: >
-            {% set now = as_timestamp(now()) %}
-            {% set times = [
-              as_timestamp(states('sensor.islamic_prayer_times_fajr_prayer'), 0),
-              as_timestamp(states('sensor.islamic_prayer_times_sunrise_time'), 0),
-              as_timestamp(states('sensor.islamic_prayer_times_dhuhr_prayer'), 0),
-              as_timestamp(states('sensor.islamic_prayer_times_asr_prayer'), 0),
-              as_timestamp(states('sensor.islamic_prayer_times_maghrib_prayer'), 0),
-              as_timestamp(states('sensor.islamic_prayer_times_isha_prayer'), 0)
-            ] %}
-            {% set past_times = times | select('<', now) | list %}
-            {% set future_times = times | select('>', now) | list %}
-            {% set start = past_times | last | default(now - 3600) %}
-            {% set end = future_times | first | default(now + 3600) %}
-            {% set total = end - start %}
-            {% set elapsed = now - start %}
-            {{ ((elapsed / total) * 100) | int }}
-  ```
-
----
-
-## External Services
-External services include:
-- Geolocation tracking (e.g., USGS Earthquake Feed).
-- REST commands for managing torrents.
-- Google Assistant integration for smart home control.
-- Example:
-  ```yaml
-  rest_command:
-    qbit_pause_all:
-      url: "http://192.168.0.40:8082/api/v2/torrents/pause"
-      method: POST
-      payload: "hashes=all"
-      content_type: "application/x-www-form-urlencoded"
-  ```
+For further assistance, refer to the [Home Assistant documentation](https://www.home-assistant.io/docs/).

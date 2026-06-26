@@ -39,8 +39,7 @@ shell_command:
   restart_nextcloud: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."
   restart_cctv: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."
   export_flight: >
-    {% set sq = "'" %}
-    echo "{{ log_data | replace(sq, '') }}" >> /config/www/flight_history.csv
+    sh -c "echo \"{{ log_data | replace('\'', '') }}\" >> /config/www/flight_history.csv"
   cleanup_flight_log: >
     tail -n 1000 /config/www/flight_history.csv > /config/www/tmp.csv && mv /config/www/tmp.csv /config/www/flight_history.csv
   cleanup_helicopter_log: >
@@ -322,29 +321,18 @@ template:
           {% set elapsed = now - start %}
           {{ ((elapsed / total) * 100) | int }}
 
-      # --- ROUTER UPTIME (BULLETPROOF) ---
+      # --- ROUTER UPTIME FORMATTER ---
       - name: "Tenda Uptime Formatted"
         icon: mdi:clock-outline
         state: >
-          {% set raw = states('sensor.wireless_router_uptime') %}
-          {% if raw in ['unavailable', 'unknown', 'none', ''] %}
-            Offline
-          {% else %}
-            {% if raw is number or raw | regex_match('^[0-9.]+$') %}
-              {% set u = raw | float(0) %}
-            {% else %}
-              {% set u = (now() - as_datetime(raw)).total_seconds() %}
-            {% endif %}
-            {% set d = (u / 86400) | int %}
-            {% set h = ((u % 86400) / 3600) | int %}
-            {% set m = ((u % 3600) / 60) | int %}
-            {%- if d > 0 -%}
-              {{ d }}d {{ h }}h {{ m }}m
-            {%- elif h > 0 -%}
-              {{ h }}h {{ m }}m
-            {%- else -%}
-              {{ m }}m
-            {%- endif -%}
+          {% set u = states('sensor.wireless_router_uptime') | int(0) %}
+          {% set d = (u / 86400) | int %}
+          {% set h = ((u % 86400) / 3600) | int %}
+          {% set m = ((u % 3600) / 60) | int %}
+          {% set s = u % 60 %}
+          {% if d > 0 %}{{ d }}d {{ h }}h {{ m }}m
+          {% elif h > 0 %}{{ h }}h {{ m }}m {{ s }}s
+          {% else %}{{ m }}m {{ s }}s
           {% endif %}
 
       # --- PREDATOR LIVE POWER ESTIMATION ENGINE ---
