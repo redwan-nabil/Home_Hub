@@ -43,6 +43,8 @@ shell_command:
     echo "{{ log_data | replace(sq, '') }}" >> /config/www/flight_history.csv
   cleanup_flight_log: >
     tail -n 1000 /config/www/flight_history.csv > /config/www/tmp.csv && mv /config/www/tmp.csv /config/www/flight_history.csv
+  cleanup_helicopter_log: >
+    tail -n 1000 /config/www/helicopter_history.csv > /config/www/tmp_heli.csv && mv /config/www/tmp_heli.csv /config/www/helicopter_history.csv
 
 # ==========================================
 # COMMAND LINE SENSORS (With Safety Nets)
@@ -89,7 +91,6 @@ sensor:
     unit_prefix: k
     round: 3
     method: left
-    
   - platform: integration
     source: sensor.predator_live_power_draw
     name: "Predator Total Energy Accumulated"
@@ -97,7 +98,6 @@ sensor:
     unit_prefix: k
     round: 3
     method: left
-    
   - platform: integration
     source: sensor.redwan_s_s23_battery_power
     name: "Redwan's S23 Total Energy"
@@ -105,14 +105,20 @@ sensor:
     unit_prefix: k
     round: 3
     method: left
-    
   - platform: integration
     source: sensor.redwan_s_s10_fe_battery_power
     name: "Redwan's S10 FE Total Energy"
     unique_id: redwan_s_s10_fe_total_energy_kwh
     unit_prefix: k
     round: 3
-    method: left  
+    method: left    
+  - platform: integration
+    source: sensor.ahlia_s_redmi_note_8_battery_power
+    name: "Ahlia's Note 8 Total Energy"
+    unique_id: ahlia_s_redmi_note_8_total_energy_kwh
+    unit_prefix: k
+    round: 3
+    method: left
 
 utility_meter:
   rpi5_daily_electricity:
@@ -139,6 +145,52 @@ utility_meter:
     cycle: monthly  
 
 # ==========================================
+# CONSOLIDATED MQTT ENGINE
+# ==========================================
+mqtt:
+  binary_sensor:
+    - name: "CSI Room Occupancy"
+      state_topic: "home/room/occupancy"
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: occupancy
+    - name: "Kitchen Emergency Status"
+      state_topic: "home/alarms/kitchen"
+      payload_on: "TRIGGERED"
+      payload_off: "SAFE"
+      device_class: smoke
+  sensor:
+    - name: "Kitchen Temperature"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.temp | round(1) }}"
+      unit_of_measurement: "°C"
+      device_class: temperature
+      state_class: measurement
+    - name: "Kitchen Humidity"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.hum | round(0) }}"
+      unit_of_measurement: "%"
+      device_class: humidity
+      state_class: measurement
+    - name: "Kitchen Barometric Pressure"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.pressure | round(1) }}"
+      unit_of_measurement: "hPa"
+      device_class: atmospheric_pressure
+      state_class: measurement
+    - name: "Kitchen Gas Concentration"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.gas }}"
+      unit_of_measurement: "PPM"
+      state_class: measurement
+    - name: "Kitchen UPS Rail Voltage"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.batt_volts | round(2) }}"
+      unit_of_measurement: "V"
+      device_class: voltage
+      state_class: measurement
+
+# ==========================================
 # SYSTEM RECORDER & DATABASE
 # ==========================================
 recorder:
@@ -154,25 +206,12 @@ recorder:
       - sensor.time
       - sensor.date
       - sensor.airspace_surveillance_log_10km
+      - sensor.helicopter_surveillance_log_10km
 
 # ==========================================
 # ADVANCED TEMPLATE SENSORS
 # ==========================================
 template:
-  # --- TENDA INTERNAL STOPWATCH ---
-  - trigger:
-      - platform: homeassistant
-        event: start
-      - platform: state
-        entity_id: sensor.wireless_router_uptime
-        from: "unavailable"
-      - platform: state
-        entity_id: sensor.wireless_router_uptime
-        from: "unknown"
-    sensor:
-      - name: "Tenda Internal Stopwatch"
-        state: "{{ now().isoformat() }}"
-
   - trigger:
       - platform: event
         event_type: flightradar24_exit
@@ -187,6 +226,28 @@ template:
             {% set n = 50 %}
             {% set m = this.attributes.flights | count | default(0) %}
             {{ [ trigger.event.data ] + ( [] if m == 0 else this.attributes.flights[0:n-1] ) }}
+            
+  - trigger:
+      - platform: state
+        entity_id: sensor.flightradar24_helicopters_in_area
+        attribute: flights
+    sensor:
+      - name: "Helicopter Surveillance Log 10km"
+        unique_id: helicopter_surveillance_log_10km
+        icon: mdi:history
+        state: "{{ trigger.to_state.state }}"
+        attributes:
+          flights: >
+            {% set saved_history = this.attributes.flights | default([], true) %}
+            {% set saved_ids = saved_history | map(attribute='id') | list %}
+            {% set new_flights = trigger.to_state.attributes.flights | default([]) %}
+            {% set ns = namespace(new_arrivals=[]) %}
+            {% for flight in new_flights %}
+              {% if flight.id not in saved_ids %}
+                {% set ns.new_arrivals = ns.new_arrivals + [flight] %}
+              {% endif %}
+            {% endfor %}
+            {{ (ns.new_arrivals + saved_history)[:5] }}
             
   - sensor:
       # --- FASTING TIMES ---
@@ -265,21 +326,25 @@ template:
       - name: "Tenda Uptime Formatted"
         icon: mdi:clock-outline
         state: >
-          {% set boot_time = states('sensor.tenda_internal_stopwatch') %}
-          {% if states('sensor.wireless_router_uptime') in ['unavailable', 'unknown'] %}
+          {% set raw = states('sensor.wireless_router_uptime') %}
+          {% if raw in ['unavailable', 'unknown', 'none', ''] %}
             Offline
-          {% elif boot_time not in ['unavailable', 'unknown', 'None', ''] %}
-            {% set boot_dt = as_datetime(boot_time) %}
-            {% set u = (now() - boot_dt).total_seconds() %}
+          {% else %}
+            {% if raw is number or raw | regex_match('^[0-9.]+$') %}
+              {% set u = raw | float(0) %}
+            {% else %}
+              {% set u = (now() - as_datetime(raw)).total_seconds() %}
+            {% endif %}
             {% set d = (u / 86400) | int %}
             {% set h = ((u % 86400) / 3600) | int %}
             {% set m = ((u % 3600) / 60) | int %}
-            {% if d > 0 %}{{ d }}d {{ h }}h {{ m }}m
-            {% elif h > 0 %}{{ h }}h {{ m }}m
-            {% else %}{{ m }}m
-            {% endif %}
-          {% else %}
-            Calculating...
+            {%- if d > 0 -%}
+              {{ d }}d {{ h }}h {{ m }}m
+            {%- elif h > 0 -%}
+              {{ h }}h {{ m }}m
+            {%- else -%}
+              {{ m }}m
+            {%- endif -%}
           {% endif %}
 
       # --- PREDATOR LIVE POWER ESTIMATION ENGINE ---
