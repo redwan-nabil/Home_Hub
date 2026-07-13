@@ -30,6 +30,9 @@ input_boolean:
   show_pi_power_history:
     name: "Show Pi Power History"
     icon: mdi:chart-bar
+  earthquake_alarm_armed:
+    name: "Earthquake Alarm Armed"
+    icon: mdi:vibrate
 
 # ==========================================
 # SHELL COMMANDS
