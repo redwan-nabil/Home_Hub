@@ -1,204 +1,190 @@
 # Pi Server Control - `server_monitor.py`
 
-## Overview
-The `server_monitor.py` script is a Python-based monitoring tool designed for Raspberry Pi servers. It provides real-time monitoring and display of system metrics, environmental conditions, network status, and Docker container health. The script utilizes an OLED display to present the data in a user-friendly manner, making it ideal for quick status checks.
+## 🚀 Release Notes
+
+### Updates in the New Version:
+1. **Enhanced Security Features**:
+   - Added a high-speed security watchdog thread to monitor environmental conditions and seismic activity.
+   - Integrated MPU6050 accelerometer for earthquake detection and magnitude calculation.
+   - Implemented a full alarm system with support for:
+     - Telegram alerts.
+     - Gmail notifications.
+     - SMS-based emergency SOS alerts.
+     - Buzzer triggering for local alarms.
+
+2. **Hardware Integration**:
+   - Replaced DHT11 sensor with BME280 sensor for more accurate temperature, humidity, and pressure readings.
+   - Integrated MPU6050 accelerometer for real-time motion and vibration detection.
+
+3. **Improved Networking and Docker Monitoring**:
+   - Enhanced network interface and internet connectivity detection.
+   - Improved Docker container health monitoring with detailed status updates.
+
+4. **Multi-Language Support**:
+   - Added support for Bangla date conversion using the `bangla` library (if available).
+   - Added fallback messages for missing Bangla library.
+
+5. **Hijri Date Calculation**:
+   - Improved Hijri date calculation using the Aladhan API.
+   - Added support for automatic date rollover after Maghrib prayer.
+
+6. **Data Synchronization with Home Assistant**:
+   - Added real-time updates for environmental and seismic data to Home Assistant sensors.
+
+7. **OLED Display Enhancements**:
+   - Redesigned OLED display layout with dynamic page flipping.
+   - Added new pages for earthquake alerts and environmental data.
+   - Improved text alignment and formatting for better readability.
+
+8. **Code Refactoring**:
+   - Modularized the code into logical sections for better readability and maintainability.
+   - Added error handling for external API calls and hardware interactions.
 
 ---
 
-## Features
-1. **System Monitoring**:
-   - CPU usage percentage.
-   - RAM usage (used/total).
-   - Raspberry Pi temperature.
-   - Disk usage (used/total).
-   - Disk read/write speeds.
+## README
 
-2. **Environmental Monitoring**:
-   - Temperature and humidity readings from a DHT11 sensor.
-   - Feels-like temperature fetched from a Home Assistant (HA) instance.
-
-3. **Network Monitoring**:
-   - Internet connection status.
-   - Network interface type (WiFi/ETH) and SSID (for WiFi).
-   - Ping latency to Google's public DNS (8.8.8.8).
-   - Network upload and download speeds.
-
-4. **Docker Container Health Check**:
-   - Monitors the status of key Docker containers (e.g., `homeassistant`, `nextcloud`, `mosquitto`, `cloudflare`, `pihole`).
-   - Alerts if any critical container is down.
-
-5. **Date and Time Display**:
-   - Current time and date in a user-friendly format.
-   - Hijri (Islamic) date fetched from the Aladhan API.
-   - Bangla calendar date displayed in both Bangla and English transliterations.
-
-6. **OLED Display**:
-   - Displays real-time data on a 128x64 OLED screen using the `adafruit_ssd1306` library.
-   - Auto-refreshes every second.
-   - Cycles through multiple pages of information every 15 seconds.
-
-7. **Background Data Fetching**:
-   - Runs a background thread to fetch and update data from sensors, APIs, and system commands.
-   - Updates data every 5 seconds for real-time accuracy.
-
-8. **Energy Efficiency**:
-   - Automatically turns off the OLED display between 12:30 AM and 5:00 AM to conserve power.
+### Overview
+`server_monitor.py` is a Python-based monitoring and alerting script designed for Raspberry Pi servers. It integrates with various hardware sensors and APIs to monitor environmental conditions, seismic activity, and server health. The script also provides real-time data visualization on an OLED display and supports multiple alerting mechanisms, including email, Telegram, and SMS.
 
 ---
 
-## Requirements
-### Hardware
-- Raspberry Pi (any model with GPIO support).
-- DHT11 Temperature and Humidity Sensor (connected to GPIO 17).
-- 128x64 OLED Display (I2C interface).
+### Features
+1. **Environmental Monitoring**:
+   - Temperature, humidity, and pressure monitoring using the BME280 sensor.
+   - Real-time data synchronization with Home Assistant.
 
-### Software
-- Python 3.x.
-- Required Python libraries:
-  - `adafruit_ssd1306`
-  - `adafruit_dht`
-  - `Pillow`
+2. **Seismic Activity Detection**:
+   - Real-time earthquake detection using the MPU6050 accelerometer.
+   - Earthquake magnitude calculation using the Richter scale.
+   - Configurable earthquake alarm system with support for:
+     - Telegram alerts.
+     - Gmail notifications.
+     - SMS-based emergency SOS alerts.
+     - Local buzzer activation.
+
+3. **Server Health Monitoring**:
+   - CPU, RAM, and disk usage monitoring.
+   - Network interface and internet connectivity status.
+   - Docker container health checks.
+
+4. **Multi-Language Support**:
+   - Bangla date conversion (requires `bangla` library).
+   - Hijri date calculation using the Aladhan API.
+
+5. **OLED Display**:
+   - Real-time data visualization on a 128x64 OLED display.
+   - Dynamic page flipping with multiple views:
+     - System performance (CPU, RAM, temperature).
+     - Disk usage and I/O statistics.
+     - Network status and internet connectivity.
+     - Environmental data (temperature, humidity, pressure).
+     - Earthquake alerts and seismic status.
+     - Docker container health.
+
+6. **Background Data Synchronization**:
+   - Periodic updates from external APIs (e.g., Aladhan for Hijri dates).
+   - Real-time data updates to Home Assistant sensors.
+
+---
+
+### Requirements
+- **Hardware**:
+  - Raspberry Pi with I2C and SPI interfaces enabled.
+  - BME280 sensor for temperature, humidity, and pressure monitoring.
+  - MPU6050 accelerometer for seismic activity detection.
+  - SSD1306 OLED display (128x64 resolution).
+  - GSM module for SMS-based emergency alerts (optional).
+
+- **Python Libraries**:
   - `psutil`
+  - `bangla` (optional for Bangla date support)
   - `requests`
-  - `bangla`
-- Home Assistant instance with API access.
+  - `smtplib`
+  - `Pillow`
+  - `adafruit-circuitpython-bme280`
+  - `adafruit-circuitpython-ssd1306`
+  - `mpu6050`
 
 ---
 
-## Installation
-
+### Installation
 1. **Install Required Libraries**:
-   Install the necessary Python libraries using `pip`:
    ```bash
-   pip install adafruit-circuitpython-ssd1306 adafruit-circuitpython-dht pillow psutil requests bangla
+   pip3 install psutil requests Pillow adafruit-circuitpython-bme280 adafruit-circuitpython-ssd1306 mpu6050
    ```
 
-2. **Enable I2C on Raspberry Pi**:
-   Ensure I2C is enabled on your Raspberry Pi:
-   ```bash
-   sudo raspi-config
-   ```
-   Navigate to `Interfacing Options > I2C` and enable it.
+2. **Enable I2C and SPI on Raspberry Pi**:
+   - Run `sudo raspi-config`.
+   - Navigate to `Interfacing Options` and enable both I2C and SPI.
 
-3. **Connect Hardware**:
-   - Connect the DHT11 sensor to GPIO 17.
-   - Connect the OLED display to the I2C pins (SCL and SDA).
-
-4. **Clone the Repository**:
-   Clone the `Pi_server_control` repository:
+3. **Install Bangla Library (Optional)**:
    ```bash
-   git clone https://github.com/your-repo/Pi_server_control.git
-   cd Pi_server_control
+   pip3 install bangla
    ```
 
-5. **Configure Home Assistant**:
-   - Update the `HA_URL` and `HA_TOKEN` variables in the script with your Home Assistant instance's URL and long-lived access token.
-   - Ensure the `HA_FEELS_LIKE` sensor is correctly configured in Home Assistant.
+4. **Configure Home Assistant**:
+   - Update the `HA_URL`, `HA_TOKEN`, and `HA_FEELS_LIKE` variables in the script with your Home Assistant details.
 
-6. **Run the Script**:
-   Execute the script:
+5. **Configure Alerting Systems**:
+   - Update the following variables in the script:
+     - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` for Telegram alerts.
+     - `GMAIL_USER`, `GMAIL_APP_PASSWORD`, and `ALERT_RECIPIENTS` for Gmail notifications.
+     - `EMERGENCY_NUMBERS` for SMS-based emergency alerts.
+
+---
+
+### Usage
+1. **Run the Script**:
    ```bash
    python3 server_monitor.py
    ```
 
----
+2. **OLED Display Pages**:
+   - The OLED display cycles through the following pages every 15 seconds:
+     1. System performance (CPU, RAM, temperature).
+     2. Disk usage and I/O statistics.
+     3. Network status and internet connectivity.
+     4. Environmental data (temperature, humidity, pressure).
+     5. Earthquake alerts and seismic status.
+     6. Docker container health.
 
-## Usage
-
-### OLED Display Pages
-The OLED display cycles through the following pages every 15 seconds:
-1. **System Metrics**:
-   - CPU usage.
-   - RAM usage.
-   - Raspberry Pi temperature.
-
-2. **Disk Usage**:
-   - OS disk usage.
-   - Disk read/write speeds.
-
-3. **Network Status**:
-   - Network interface type and SSID.
-   - Upload and download speeds.
-   - Ping latency.
-
-4. **Environmental Data**:
-   - Server room temperature (DHT11).
-   - Humidity level (DHT11).
-   - Feels-like temperature (from Home Assistant).
-
-5. **Docker Health**:
-   - Status of critical Docker containers.
-
-### Footer
-The footer alternates every 15 seconds between:
-- Hijri (Islamic) date.
-- Bangla calendar date (in Bangla and English transliterations).
+3. **Alerts**:
+   - The script automatically triggers alerts for critical events, such as:
+     - Fire detection (temperature spike).
+     - Earthquake detection (magnitude ≥ 4.5).
+     - Docker container failures.
 
 ---
 
-## Configuration
+### Configuration
+- **Adjusting Thresholds**:
+  - Fire detection temperature threshold: `if (current_temp - baseline_temp) > 5.0`.
+  - Earthquake detection magnitude threshold: `if richter >= 4.5`.
 
-### Home Assistant Integration
-To enable Home Assistant integration:
-1. Obtain a long-lived access token from your Home Assistant instance.
-2. Replace the `HA_URL` and `HA_TOKEN` variables in the script with your instance's URL and token.
-3. Ensure the `HA_FEELS_LIKE` sensor is configured in Home Assistant.
+- **Customizing Pages**:
+  - Modify the `lines` array in the OLED display loop to customize the displayed information.
 
-### Docker Monitoring
-The script monitors the following Docker containers by default:
-- `homeassistant`
-- `nextcloud`
-- `mosquitto`
-- `cloudflare`
-- `pihole`
-
-To modify the list of monitored containers, update the `background_tasks` function in the script.
+- **Adding New Alerts**:
+  - Use the `trigger_full_alarm` function to add new alerting mechanisms.
 
 ---
 
-## Notes
-1. **Error Handling**:
-   - The script includes error handling for API requests, sensor readings, and system commands. If an error occurs, the corresponding data will display as `--` or an appropriate fallback message.
+### Troubleshooting
+1. **Bangla Library Missing**:
+   - If the Bangla library is not installed, the script will display "Bangla Lib Missing" for the Bangla date.
 
-2. **Energy Efficiency**:
-   - The OLED display turns off between 12:30 AM and 5:00 AM to conserve power.
+2. **API Errors**:
+   - If the Aladhan API is unavailable, the Hijri date will display "API Offline".
 
-3. **Bangla Date**:
-   - The Bangla date is displayed using the `bangla` library. If the library fails to fetch the date, it will display `--`.
+3. **Hardware Issues**:
+   - Ensure all hardware components are properly connected and configured.
+   - Check the I2C and SPI connections for the OLED display and sensors.
 
-4. **Hijri Date**:
-   - The Hijri date is fetched from the Aladhan API. If the API is offline, the script will display `API Offline`.
-
----
-
-## Troubleshooting
-
-### Common Issues
-1. **OLED Display Not Working**:
-   - Ensure the I2C interface is enabled on your Raspberry Pi.
-   - Verify the OLED display is connected to the correct pins.
-
-2. **DHT11 Sensor Not Responding**:
-   - Check the wiring of the DHT11 sensor.
-   - Ensure the sensor is connected to GPIO 17.
-
-3. **Home Assistant API Errors**:
-   - Verify the `HA_URL` and `HA_TOKEN` values in the script.
-   - Ensure the Home Assistant instance is reachable from the Raspberry Pi.
-
-4. **Docker Monitoring Issues**:
-   - Ensure the Docker daemon is running on the Raspberry Pi.
-   - Verify the container names match those in the script.
+4. **Permission Errors**:
+   - Ensure the script is run with appropriate permissions to access hardware interfaces and network resources.
 
 ---
 
-## License
-This project is licensed under the MIT License. See the `LICENSE` file for details.
-
----
-
-## Acknowledgments
-- [Adafruit CircuitPython Libraries](https://github.com/adafruit)
-- [Bangla Python Library](https://github.com/torifat/bangla)
-- [Aladhan API](https://aladhan.com/)
-- [Pillow Library](https://pillow.readthedocs.io/)
+### License
+This project is licensed under the MIT License.

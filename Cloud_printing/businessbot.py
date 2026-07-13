@@ -345,8 +345,7 @@ def handle_query(call):
                     bot.send_message(user_id, "❌ Hardware error: Scanner was busy or failed to read the document.")
                     bot.send_message(ADMIN_ID, f"❌ Scanner hardware error for {job['name']}. Please try scanning manually.")
                 
-                if os.path.exists(scan_file):
-                    os.remove(scan_file)
+                # File cleanup handled by Garbage Collector below
             
         threading.Thread(target=process_scan).start()
 
@@ -380,5 +379,72 @@ def handle_text(message):
             bot.send_message(ADMIN_ID, admin_msg, reply_markup=markup)
         
         user_states[user_id] = {'state': 'IDLE'}
+
+# ==========================================
+# ENTERPRISE N8N API BRIDGE (NEW)
+# ==========================================
+from flask import Flask, request, jsonify
+import werkzeug
+
+app = Flask(__name__)
+
+@app.route('/n8n_webhook', methods=['POST'])
+def handle_n8n_job():
+    if 'file' not in request.files:
+        return jsonify({"status": "error", "message": "No file uploaded"}), 400
+        
+    file = request.files['file']
+    platform = request.form.get('platform', 'Unknown')
+    customer_id = request.form.get('customer_id', 'Guest')
+    
+    # Save the file locally
+    filename = werkzeug.utils.secure_filename(file.filename)
+    file_path = f"/home/redwannabil/n8n_print_{customer_id}_{filename}"
+    file.save(file_path)
+    
+    # Immediately notify Admin via Telegram
+    bot.send_message(
+        ADMIN_ID, 
+        f"🌐 <b>OMNICHANNEL PRINT JOB</b>\nPlatform: {platform}\nCustomer ID: {customer_id}\nFile: {filename}\n\n<i>Sending to printer automatically...</i>",
+        parse_mode="HTML"
+    )
+    
+    # Send to CUPS Printer
+    os.system(f"lp -d {PRINTER_NAME} -o media=A4 -o fit-to-page '{file_path}'")
+    
+    return jsonify({"status": "success", "message": "Job sent to printer spooler!"}), 200
+
+def run_api():
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+
+# ==========================================
+# AUTOMATED GARBAGE COLLECTOR THREAD
+# ==========================================
+def garbage_collector():
+    """Silently cleans up abandoned or finished print/scan files older than 1 hour"""
+    while True:
+        try:
+            now = time.time()
+            directories = ['/home/redwannabil', '/tmp']
+            
+            for directory in directories:
+                if not os.path.exists(directory):
+                    continue
+                    
+                for filename in os.listdir(directory):
+                    if filename.endswith(".pdf") and (filename.startswith("print_") or filename.startswith("n8n_print_") or filename.startswith("scanned_")):
+                        filepath = os.path.join(directory, filename)
+                        # If the file is older than 3600 seconds (1 hour)
+                        if os.path.getctime(filepath) < (now - 3600):
+                            os.remove(filepath)
+                            print(f"[GARBAGE COLLECTOR] Wiped old file: {filepath}")
+        except Exception as e:
+            print(f"[GARBAGE ERROR] {e}")
+            
+        time.sleep(3600) # Sleep for 1 hour before checking again
+
+# Start background threads
+threading.Thread(target=run_api, daemon=True).start()
+threading.Thread(target=garbage_collector, daemon=True).start()
 
 bot.infinity_polling()
