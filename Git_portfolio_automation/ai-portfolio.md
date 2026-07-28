@@ -8,6 +8,7 @@ The `AI Portfolio Architect` is a GitHub Actions workflow designed to automate t
 - **AI Integration**: Leverages OpenAI's API to generate or modify portfolio content.
 - **GitHub Native Automation**: Uses GitHub Actions to streamline the workflow, including automated commits.
 - **Node.js Compatibility**: Prepares for Node.js 24 compatibility by silencing Node.js 20 deprecation warnings.
+- **Concurrency Protection**: Ensures only one portfolio build per branch runs at a time to avoid non-fast-forward push conflicts.
 
 ---
 
