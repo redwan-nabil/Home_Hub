@@ -5,6 +5,10 @@ on:
     paths:
       - 'incoming/**'
 
+concurrency:
+  group: ai-portfolio-${{ github.ref }}
+  cancel-in-progress: true
+
 # This silences the Node 20 deprecation warning by opting into Node 24 early
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
