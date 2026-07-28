@@ -197,7 +197,7 @@ mqtt:
 # ==========================================
 recorder:
   purge_keep_days: 2
-  commit_interval: 30
+  commit_interval: 60
   exclude:
     domains:
       - sun
@@ -389,9 +389,26 @@ rest_command:
 google_assistant:
   project_id: redwans-smart-home-hub
   service_account: !include SERVICE_ACCOUNT.json
-  report_state: false
-  exposed_domains:
-    - switch
-    - light
-    - script
-    - input_boolean
+  report_state: true
+  expose_by_default: false
+  entity_config:
+    # --- SCRIPTS (Voice Commands) ---
+    script.restart_nextcloud_server:
+      expose: true
+      name: "Nextcloud Server"
+    script.arm_earthquake_system:
+      expose: true
+      name: "Earthquake Alarm"
+      
+    # --- SWITCHES & TOGGLES ---
+    input_boolean.show_pi_power_history:
+      expose: true
+      name: "Pi Power Graph"
+      
+    # --- ENVIRONMENTAL SENSORS (For "What is the..." queries) ---
+    sensor.kitchen_temperature:
+      expose: true
+      name: "Kitchen Temperature"
+    sensor.kitchen_humidity:
+      expose: true
+      name: "Kitchen Humidity"

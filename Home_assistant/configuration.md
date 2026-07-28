@@ -1,179 +1,175 @@
 # 🚀 Release Notes
 
-### Updates in `configuration.yaml`
-1. **New Input Boolean Added**:
-   - `earthquake_alarm_armed`: Allows toggling the earthquake alarm system with an icon `mdi:vibrate`.
-
-2. **New Command Line Sensors**:
-   - Added sensors for monitoring hardware and power usage:
-     - `RPi5 Fan Speed`
-     - `Main NVMe Health`
-     - `CCTV SSD Health`
-     - `RPi5 Live Power Draw`
-
-3. **Energy Tracking Enhancements**:
-   - Added new `utility_meter` sensors for daily and monthly electricity usage tracking:
-     - `Predator Daily Electricity Usage`
-     - `Predator Monthly Electricity Usage`
-
-4. **New MQTT Sensors**:
-   - Added binary sensors for:
-     - `CSI Room Occupancy`
-     - `Kitchen Emergency Status`
-   - Added sensors for kitchen environment monitoring:
-     - `Kitchen Temperature`
-     - `Kitchen Humidity`
-     - `Kitchen Barometric Pressure`
-     - `Kitchen Gas Concentration`
-     - `Kitchen UPS Rail Voltage`
-
-5. **Advanced Template Sensors**:
-   - Added sensors for:
-     - Islamic prayer times and fasting schedules (`Next Sahri Ends`, `Next Iftar`, `Active Waqt Details`, etc.).
-     - Dynamic Waqt progress percentage (`Waqt Progress Percentage`).
-     - Router uptime formatter (`Tenda Uptime Formatted`).
-     - Predator live power estimation (`Predator Live Power Draw`).
-
-6. **External Services**:
-   - Added a new `geo_location` platform for USGS earthquake feed with a 1500km radius and minimum magnitude of 4.5.
+### Changes in `configuration.yaml`:
+1. **Recorder Configuration Update**:
+   - `commit_interval` increased from `30` to `60` seconds for improved performance.
+   
+2. **New Features Added**:
+   - **Energy Tracking Enhancements**:
+     - Added new `utility_meter` entries for `Predator Daily Electricity Usage` and `Predator Monthly Electricity Usage`.
+   - **Advanced Template Sensors**:
+     - Added `Waqt Progress Percentage`, `Time Until Next Event Formatted`, and `Active Waqt Details` for dynamic Islamic prayer time tracking.
+     - Introduced `Tenda Uptime Formatted` for router uptime in a human-readable format.
+     - Added `Predator Live Power Draw` estimation logic.
+   - **External Services**:
+     - Enabled `google_assistant.report_state` for real-time state reporting.
+     - Added granular `entity_config` for Google Assistant integration, exposing specific scripts, toggles, and environmental sensors.
 
 ---
 
 # Home Assistant Configuration
 
-This repository contains the configuration files for a Home Assistant instance. The setup is designed to manage and monitor a smart home environment, including automation, energy tracking, MQTT sensors, and external integrations.
+This repository contains the configuration for a Home Assistant instance. Below is a detailed breakdown of the configuration and its components.
 
-## Features
+---
 
-### Default Configuration
-The `default_config` integration is included to load the default set of Home Assistant integrations.
+## Table of Contents
 
-### Frontend Themes
-Custom themes are loaded from the `themes` directory using the `!include_dir_merge_named` directive.
+1. [Default Configuration](#default-configuration)
+2. [Frontend Themes](#frontend-themes)
+3. [HTTP Configuration](#http-configuration)
+4. [Dashboard Controls](#dashboard-controls)
+5. [Shell Commands](#shell-commands)
+6. [Command Line Sensors](#command-line-sensors)
+7. [Energy Tracking Engine](#energy-tracking-engine)
+8. [Consolidated MQTT Engine](#consolidated-mqtt-engine)
+9. [System Recorder & Database](#system-recorder--database)
+10. [Advanced Template Sensors](#advanced-template-sensors)
+11. [External Services](#external-services)
 
-### Automation, Scripts, and Scenes
-- Automations: Configured in `automations.yaml`.
-- Scripts: Configured in `scripts.yaml`.
-- Scenes: Configured in `scenes.yaml`.
+---
 
-### HTTP Configuration
-- `use_x_forwarded_for`: Enabled for reverse proxy support.
-- `trusted_proxies`: Configured for specific IP ranges to allow trusted proxy connections.
+## Default Configuration
+
+The `default_config` integration is included to load the default set of Home Assistant integrations. It is recommended not to remove this section.
+
+---
+
+## Frontend Themes
+
+The `frontend` section loads custom themes from the `themes` directory using the `!include_dir_merge_named` directive.
+
+---
+
+## HTTP Configuration
+
+The `http` section is configured to:
+- Use `X-Forwarded-For` headers for reverse proxy setups.
+- Define a list of trusted proxies, including local and private IP ranges.
+
+---
+
+## Dashboard Controls
 
 ### Input Booleans
-Custom toggles for dashboard controls:
-- `show_pi_power_history`: Toggle to display Raspberry Pi power history.
-- `earthquake_alarm_armed`: Toggle to arm/disarm the earthquake alarm system.
-
-### Shell Commands
-Predefined shell commands for system management:
-- `run_ha_backup`: Executes a Home Assistant backup via SSH.
-- `restart_nextcloud`: Restarts the Nextcloud service.
-- `restart_cctv`: Restarts the CCTV system.
-- `export_flight`: Exports flight history to a CSV file.
-- `cleanup_flight_log`: Trims flight history logs to the last 1000 entries.
-- `cleanup_helicopter_log`: Trims helicopter logs to the last 1000 entries.
-
-### Command Line Sensors
-Sensors for monitoring hardware and system health:
-- `RPi5 Fan Speed`: Monitors the fan speed of Raspberry Pi 5.
-- `Main NVMe Health`: Tracks the health of the main NVMe drive.
-- `CCTV SSD Health`: Tracks the health of the CCTV SSD.
-- `RPi5 Live Power Draw`: Monitors the live power draw of Raspberry Pi 5.
-
-### Energy Tracking
-Energy usage is tracked using the `integration` platform:
-- `RPi5 Total Energy`
-- `Predator Total Energy Accumulated`
-- `Redwan's S23 Total Energy`
-- `Redwan's S10 FE Total Energy`
-- `Ahlia's Note 8 Total Energy`
-
-Utility meters are configured for daily and monthly electricity usage:
-- `RPi5 Daily Electricity`
-- `RPi5 Monthly Electricity`
-- `Predator Daily Electricity Usage`
-- `Predator Monthly Electricity Usage`
-
-### MQTT Sensors
-Integration with MQTT for real-time monitoring:
-- Binary sensors:
-  - `CSI Room Occupancy`
-  - `Kitchen Emergency Status`
-- Environmental sensors for the kitchen:
-  - `Kitchen Temperature`
-  - `Kitchen Humidity`
-  - `Kitchen Barometric Pressure`
-  - `Kitchen Gas Concentration`
-  - `Kitchen UPS Rail Voltage`
-
-### Recorder
-- Data retention is limited to 2 days to optimize database performance.
-- Excludes specific domains and entities from being recorded (e.g., `sun`, `weather`, `camera`, etc.).
-
-### Advanced Template Sensors
-Custom template sensors for advanced logic:
-- Islamic prayer times and fasting schedules:
-  - `Next Sahri Ends`
-  - `Next Iftar`
-  - `Active Waqt Details`
-  - `Time Until Next Event Formatted`
-  - `Waqt Progress Percentage`
-- Router uptime formatter: `Tenda Uptime Formatted`.
-- Predator live power estimation: `Predator Live Power Draw`.
-
-### External Services
-- **Zone**: Defined a 10km airspace dome for geofencing.
-- **USGS Earthquake Feed**: Monitors earthquakes within a 1500km radius and a minimum magnitude of 4.5.
-- **REST Commands**:
-  - `qbit_pause_all`: Pauses all torrents in qBittorrent.
-  - `qbit_resume_all`: Resumes all torrents in qBittorrent.
-- **Google Assistant Integration**:
-  - Configured for project `redwans-smart-home-hub`.
-  - Exposed domains: `switch`, `light`, `script`, `input_boolean`.
+- **`show_pi_power_history`**: Toggle to display Raspberry Pi power history.
+- **`earthquake_alarm_armed`**: Toggle to arm/disarm the earthquake alarm system.
 
 ---
 
-## File Structure
-```
-configuration.yaml
-automations.yaml
-scripts.yaml
-scenes.yaml
-themes/
-  └── <theme_files>
-config/
-  └── www/
-      ├── flight_history.csv
-      ├── helicopter_history.csv
-      ├── fan_speed.txt
-      ├── nvme_health.txt
-      ├── sda_health.txt
-      └── power_draw.txt
-ssh_keys/
-  └── id_rsa
-SERVICE_ACCOUNT.json
-```
+## Shell Commands
+
+Custom shell commands for remote operations:
+- **`run_ha_backup`**: Initiates a Home Assistant backup via SSH.
+- **`restart_nextcloud`**: Restarts the Nextcloud server.
+- **`restart_cctv`**: Restarts the CCTV system.
+- **`export_flight`**: Appends flight log data to a CSV file.
+- **`cleanup_flight_log`**: Trims the flight log to the last 1000 entries.
+- **`cleanup_helicopter_log`**: Trims the helicopter log to the last 1000 entries.
 
 ---
 
-## Installation
-1. Clone this repository to your Home Assistant configuration directory.
-2. Ensure all required files (e.g., `SERVICE_ACCOUNT.json`, `ssh_keys/id_rsa`) are correctly placed.
-3. Restart Home Assistant to apply the changes.
+## Command Line Sensors
+
+### Sensors:
+- **`RPi5 Fan Speed`**: Monitors the fan speed of the Raspberry Pi 5.
+- **`Main NVMe Health`**: Reports the health of the main NVMe drive.
+- **`CCTV SSD Health`**: Reports the health of the CCTV SSD.
+- **`RPi5 Live Power Draw`**: Tracks the live power consumption of the Raspberry Pi 5.
 
 ---
+
+## Energy Tracking Engine
+
+### Sensors:
+- **`RPi5 Total Energy`**: Tracks the total energy consumption of the Raspberry Pi 5.
+- **`Predator Total Energy Accumulated`**: Tracks the total energy usage of the Predator system.
+- **`Redwan's S23 Total Energy`**: Tracks energy usage for Redwan's S23 device.
+- **`Redwan's S10 FE Total Energy`**: Tracks energy usage for Redwan's S10 FE device.
+- **`Ahlia's Note 8 Total Energy`**: Tracks energy usage for Ahlia's Note 8 device.
+
+### Utility Meters:
+- **`RPi5 Daily/Monthly Electricity`**: Tracks daily and monthly electricity usage for the Raspberry Pi 5.
+- **`Predator Daily/Monthly Electricity Usage`**: Tracks daily and monthly electricity usage for the Predator system.
+
+---
+
+## Consolidated MQTT Engine
+
+### Binary Sensors:
+- **`CSI Room Occupancy`**: Detects room occupancy.
+- **`Kitchen Emergency Status`**: Monitors kitchen smoke alarm status.
+
+### Sensors:
+- **`Kitchen Temperature`**: Reports the temperature in the kitchen.
+- **`Kitchen Humidity`**: Reports the humidity in the kitchen.
+- **`Kitchen Barometric Pressure`**: Reports the barometric pressure in the kitchen.
+- **`Kitchen Gas Concentration`**: Monitors gas concentration in the kitchen.
+- **`Kitchen UPS Rail Voltage`**: Tracks the UPS rail voltage in the kitchen.
+
+---
+
+## System Recorder & Database
+
+### Configuration:
+- **`purge_keep_days`**: Retains data for 2 days.
+- **`commit_interval`**: Commits data every 60 seconds.
+- **Exclusions**:
+  - Domains: `sun`, `weather`, `camera`, `update`.
+  - Entities: `sensor.time`, `sensor.date`, and specific surveillance logs.
+
+---
+
+## Advanced Template Sensors
+
+### Features:
+- **Dynamic Islamic Prayer Times**:
+  - `Next Sahri Ends`, `Next Iftar`, and `Active Waqt Details`.
+  - Includes prohibited times for sunrise, zawal, and sunset.
+- **Human-Readable Countdown**:
+  - `Time Until Next Event Formatted` displays time until the next prayer/event.
+- **Progress Gauge**:
+  - `Waqt Progress Percentage` shows progress for the current prayer time.
+- **Router Uptime**:
+  - `Tenda Uptime Formatted` provides a human-readable router uptime.
+- **Predator Power Estimation**:
+  - `Predator Live Power Draw` estimates power consumption based on CPU and GPU load.
+
+---
+
+## External Services
+
+### Zone:
+- **`10km Airspace Dome`**: Defines a geofence with a 10km radius for airspace monitoring.
+
+### Geo-location:
+- **USGS Earthquake Feed**: Tracks earthquakes with a magnitude of 4.5+ within a 1500km radius.
+
+### REST Commands:
+- **`qbit_pause_all`**: Pauses all torrents in qBittorrent.
+- **`qbit_resume_all`**: Resumes all torrents in qBittorrent.
+
+### Google Assistant:
+- **Project ID**: `redwans-smart-home-hub`.
+- **State Reporting**: Enabled for real-time updates.
+- **Exposed Entities**:
+  - Scripts: `restart_nextcloud_server`, `arm_earthquake_system`.
+  - Toggles: `show_pi_power_history`.
+  - Sensors: `kitchen_temperature`, `kitchen_humidity`.
+
+--- 
 
 ## Notes
-- Ensure the MQTT broker is properly configured and running.
-- Update the IP addresses and credentials for external services (e.g., qBittorrent, SSH) as needed.
-- Verify the paths for external files (e.g., `fan_speed.txt`, `nvme_health.txt`) are correct and accessible.
 
----
-
-## Troubleshooting
-- **Database Size**: If the database grows too large, adjust the `purge_keep_days` setting in the `recorder` section.
-- **Sensor Errors**: Ensure all external files and MQTT topics are correctly configured and accessible.
-- **Google Assistant Issues**: Verify the `SERVICE_ACCOUNT.json` file and project ID are correct.
-
-For additional support, refer to the [Home Assistant Documentation](https://www.home-assistant.io/docs/).
+- Ensure all external dependencies (e.g., `SERVICE_ACCOUNT.json`, SSH keys) are correctly configured.
+- Validate the configuration using Home Assistant's built-in tools before deployment.

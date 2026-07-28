@@ -1,121 +1,117 @@
 # 🚀 Release Notes
 
 ### Changes in `update_ssd_health.sh`:
-1. **Improved Path Handling**:
-   - Absolute paths are now used for critical binaries (`nvme`, `findmnt`, `lsblk`, `smartctl`) to ensure compatibility across environments and avoid dependency on `$PATH`.
+1. **Improved Robustness**:
+   - Added explicit checks to ensure that the extracted health metrics (`NVME_USED` and `SDA_HEALTH`) are valid numbers before proceeding with calculations or file updates.
+   
+2. **Code Cleanup**:
+   - Removed redundant or unnecessary comments for clarity.
+   - Ensured consistent use of absolute paths for all system binaries (`nvme`, `findmnt`, `lsblk`, `smartctl`) to prevent potential path resolution issues.
 
-2. **Enhanced Error Handling**:
-   - Added checks to ensure that extracted values (`NVME_USED`, `SDA_HEALTH`) are valid numbers before proceeding with calculations or file writes.
-   - Handles cases where the external CCTV SSD is disconnected by writing `0` to the health file.
-
-3. **Refined NVMe Health Calculation**:
-   - Extracts `percentage_used` directly using `cut` and `tr` for more robust parsing.
-
-4. **Dynamic SSD Health Detection**:
-   - Improved logic for detecting and handling the external CCTV SSD health using multiple potential SMART attributes (`Media_Wearout_Indicator`, `Wear_Leveling_Count`, `Percent_Lifetime_Remain`, `SSD_Life_Left`).
-
-5. **Code Structure**:
-   - Added clear section headers for better readability and maintainability.
+3. **Error Handling**:
+   - Added a fallback mechanism to write `0` to the `sda_health.txt` file if the external SSD is disconnected or unavailable.
 
 ---
 
 # `update_ssd_health.sh`
 
 ## Overview
-The `update_ssd_health.sh` script monitors the health of two SSDs:
-1. **Main NVMe SSD (OS Drive)**: Tracks the health of the primary NVMe drive by calculating the remaining health percentage based on the `percentage_used` attribute.
-2. **External CCTV SSD**: Monitors the health of an external SSD used for CCTV storage by dynamically detecting the drive and extracting relevant SMART attributes.
+The `update_ssd_health.sh` script is designed to monitor and log the health of two SSDs on a Raspberry Pi server:
+1. **Main NVMe Drive**: The operating system drive.
+2. **External CCTV SSD**: A USB-connected SSD used for CCTV storage.
 
-The script writes the health metrics to text files in the Home Assistant configuration directory for further monitoring and integration.
+The script retrieves health metrics for both drives and writes the results to respective files in the Home Assistant directory for further monitoring or integration.
+
+---
+
+## Features
+- **NVMe Health Monitoring**: Calculates the remaining health of the main NVMe drive by subtracting the percentage used from 100.
+- **External SSD Health Monitoring**: Retrieves the health status of an external SSD using SMART attributes.
+- **Error Handling**: Detects if the external SSD is disconnected and logs a health value of `0` to indicate failure.
+- **Path Robustness**: Ensures all system binaries are accessed using absolute paths to avoid issues with missing or incorrect `$PATH` configurations.
+
+---
+
+## File Outputs
+The script generates the following output files:
+1. `/home/redwannabil/homeassistant/nvme_health.txt`: Contains the remaining health percentage of the main NVMe drive.
+2. `/home/redwannabil/homeassistant/sda_health.txt`: Contains the health percentage of the external SSD or `0` if the drive is disconnected.
 
 ---
 
 ## Prerequisites
 1. **Dependencies**:
-   - `nvme-cli`: Required for querying NVMe drive health.
-   - `smartmontools`: Required for querying SMART attributes of the external SSD.
-   - `findmnt` and `lsblk`: For dynamic detection of the external SSD.
-
-   Install dependencies using:
-   ```bash
-   sudo apt update
-   sudo apt install nvme-cli smartmontools util-linux
-   ```
+   - `nvme-cli`: For retrieving NVMe drive health metrics.
+   - `smartmontools`: For retrieving SMART attributes of the external SSD.
+   - `findmnt` and `lsblk`: For identifying the mounted external SSD.
 
 2. **Permissions**:
-   - The script uses `sudo` to access `nvme` and `smartctl`. Ensure the user running the script has appropriate `sudo` permissions.
+   - The script requires `sudo` privileges to execute `nvme` and `smartctl` commands.
 
-3. **Mount Point**:
-   - The external SSD must be mounted at `/mnt/cctv_ssd`.
+3. **Home Assistant Directory**:
+   - Ensure the directory `/home/redwannabil/homeassistant/` exists and is writable by the script.
 
 ---
 
-## Installation
-1. Place the script in the desired directory, e.g., `/usr/local/bin/update_ssd_health.sh`.
+## Usage
+1. Save the script as `update_ssd_health.sh`.
 2. Make the script executable:
    ```bash
-   chmod +x /usr/local/bin/update_ssd_health.sh
+   chmod +x update_ssd_health.sh
    ```
-3. Schedule the script to run periodically using `cron` or a similar scheduler:
+3. Run the script manually or schedule it via `cron` for periodic execution:
    ```bash
-   crontab -e
-   ```
-   Add the following line to run the script every hour:
-   ```bash
-   0 * * * * /usr/local/bin/update_ssd_health.sh
+   ./update_ssd_health.sh
    ```
 
 ---
 
-## Script Details
+## Script Logic
+### 1. Main NVMe Health Monitoring
+- The script uses the `nvme smart-log` command to retrieve the `percentage_used` attribute of the NVMe drive (`/dev/nvme0n1`).
+- It calculates the remaining health as `100 - percentage_used`.
+- If the extracted value is a valid number, it writes the result to `/home/redwannabil/homeassistant/nvme_health.txt`.
 
-### 1. Main NVMe Health (OS Drive)
-- **Purpose**: Calculates the remaining health of the primary NVMe drive.
-- **Logic**:
-  - Extracts the `percentage_used` attribute using `nvme smart-log`.
-  - Calculates the remaining health as `100 - percentage_used`.
-  - Writes the result to `/home/redwannabil/homeassistant/nvme_health.txt`.
-
-- **Error Handling**:
-  - Ensures `percentage_used` is a valid number before performing calculations.
-
-### 2. External CCTV SSD Health
-- **Purpose**: Monitors the health of an external SSD used for CCTV storage.
-- **Logic**:
-  - Dynamically detects the base drive of the mounted SSD using `findmnt` and `lsblk`.
-  - Extracts relevant SMART attributes (`Media_Wearout_Indicator`, `Wear_Leveling_Count`, `Percent_Lifetime_Remain`, or `SSD_Life_Left`) using `smartctl`.
-  - Writes the health value to `/home/redwannabil/homeassistant/sda_health.txt`.
-
-- **Error Handling**:
-  - If the SSD is disconnected, writes `0` to indicate failure.
+### 2. External SSD Health Monitoring
+- The script identifies the mounted external SSD partition using `findmnt`.
+- If the partition is found, it determines the parent device using `lsblk`.
+- It retrieves the health status using `smartctl` by checking specific SMART attributes (e.g., `Media_Wearout_Indicator`, `Wear_Leveling_Count`, etc.).
+- If the health value is valid, it writes the result to `/home/redwannabil/homeassistant/sda_health.txt`.
+- If the external SSD is disconnected, it writes `0` to indicate failure.
 
 ---
 
-## Output
-The script generates two files in the Home Assistant configuration directory:
-1. `nvme_health.txt`: Contains the remaining health percentage of the NVMe drive.
-2. `sda_health.txt`: Contains the health value of the external CCTV SSD or `0` if the drive is disconnected.
+## Example Output
+- **NVMe Health**:
+  - File: `/home/redwannabil/homeassistant/nvme_health.txt`
+  - Content: `95` (indicating 95% health remaining)
+- **External SSD Health**:
+  - File: `/home/redwannabil/homeassistant/sda_health.txt`
+  - Content: `80` (indicating 80% health remaining) or `0` (if disconnected)
 
 ---
 
 ## Troubleshooting
 1. **Permission Denied**:
-   - Ensure the script is executable and the user has `sudo` permissions for `nvme` and `smartctl`.
-
-2. **Incorrect Health Values**:
-   - Verify that the dependencies (`nvme-cli`, `smartmontools`) are installed and functional.
-   - Check the mount point `/mnt/cctv_ssd` and ensure the external SSD is properly connected.
-
-3. **Script Fails to Run in Cron**:
-   - Ensure the full path to the script is specified in the `crontab` entry.
-   - Add the following line at the top of the script to load system paths:
+   - Ensure the script is executable and run with appropriate permissions:
      ```bash
-     export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+     chmod +x update_ssd_health.sh
+     sudo ./update_ssd_health.sh
      ```
+
+2. **Missing Dependencies**:
+   - Install required tools:
+     ```bash
+     sudo apt update
+     sudo apt install nvme-cli smartmontools
+     ```
+
+3. **Incorrect File Paths**:
+   - Verify the paths to the Home Assistant directory and SSD devices.
 
 ---
 
 ## Future Improvements
-- Add logging to capture script execution details and errors.
-- Extend support for additional SSD health attributes.
+- Add logging for debugging purposes.
 - Implement email or notification alerts for critical health thresholds.
+- Extend support for additional SSDs or storage devices.

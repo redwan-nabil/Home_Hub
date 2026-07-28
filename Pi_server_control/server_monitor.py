@@ -42,9 +42,9 @@ TELEGRAM_BOT_TOKEN = "REDACTED_BY_SYSADMIN"
 TELEGRAM_CHAT_ID = "REDACTED_BY_SYSADMIN"
 EMERGENCY_NUMBERS = ["+8801794684164", "+8801342570575"] 
 
-GMAIL_USER = "nabilredwoan2005@gmail.com" # REPLACE THIS LATER
+GMAIL_USER = "nabilredwoan2005@gmail.com"
 GMAIL_APP_PASSWORD = "REDACTED_BY_SYSADMIN"
-ALERT_RECIPIENTS = ["redwannabil116@gmail.com"] # REPLACE THIS LATER
+ALERT_RECIPIENTS = ["redwannabil116@gmail.com"] 
 
 # ==========================================
 # HARDWARE INITIALIZATION
@@ -81,11 +81,16 @@ def send_gmail_alert(message):
         msg.attach(MIMEText(message, 'plain'))
         
         server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.ehlo()
         server.starttls()
-        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+        server.ehlo()
+        
+        clean_password = "REDACTED_BY_SYSADMIN"
+        server.login(GMAIL_USER, clean_password)
         server.send_message(msg)
         server.quit()
-    except: pass
+    except Exception as e: 
+        print(f"[GMAIL ERROR] {e}")
 
 def telegram_alert(message):
     try:
@@ -122,34 +127,36 @@ def trigger_full_alarm(message):
         threading.Thread(target=emergency_sos, args=(message,), daemon=True).start()
 
 # ==========================================
-# HIGH-SPEED SECURITY WATCHDOG 
+# HIGH-SPEED SECURITY WATCHDOG (STA/LTA ALGORITHM)
 # ==========================================
 def security_watchdog_thread():
     time.sleep(15)
     headers = {"Authorization": f"Bearer {HA_TOKEN}", "Content-Type": "application/json"}
     
-    baseline_temp = 0
-    baseline_gravity = 9.81
+    baseline_temp = 25.0
     try:
-        readings_t = []
-        readings_g = []
-        for _ in range(5):
-            readings_t.append(bme280.temperature)
-            accel = mpu.get_accel_data()
-            mag = math.sqrt(accel['x']**2 + accel['y']**2 + accel['z']**2)
-            readings_g.append(mag)
-            time.sleep(1)
+        readings_t = [bme280.temperature for _ in range(5)]
         baseline_temp = sum(readings_t) / len(readings_t)
-        baseline_gravity = sum(readings_g) / len(readings_g)
+    except: pass
+
+    try:
+        accel_init = mpu.get_accel_data()
+        grav_x, grav_y, grav_z = accel_init['x'], accel_init['y'], accel_init['z']
     except:
-        baseline_temp = 25.0 
-        baseline_gravity = 9.81
+        grav_x, grav_y, grav_z = 0.0, 0.0, 9.81
+    
+    alpha = 0.95 
+    
+    # STA/LTA Data Windows
+    lta_window = []  # 30 seconds of background noise
+    sta_window = []  # 1 second of sudden spikes
     
     while True:
         try:
             r = requests.get(f"{HA_URL}/api/states/input_boolean.earthquake_alarm_armed", headers=headers, timeout=2)
             bg_data["earthquake_armed"] = (r.json().get("state") == "on")
             
+            # --- FIRE DETECTION ---
             current_temp = bme280.temperature
             if current_temp > 5.0:
                 bg_data["bme_t"] = round(current_temp, 1)
@@ -161,29 +168,72 @@ def security_watchdog_thread():
                     baseline_temp = current_temp 
         except: pass
 
-        try:
-            accel = mpu.get_accel_data()
-            bg_data["accel_x"] = round(accel['x'], 2)
-            bg_data["accel_y"] = round(accel['y'], 2)
-            bg_data["accel_z"] = round(accel['z'], 2)
+        # --- SEISMIC DETECTION (STA/LTA ENGINE) ---
+        triggered_in_window = False
+        max_richter_window = 0.0
+        latest_x, latest_y, latest_z = 0.0, 0.0, 0.0
 
-            current_magnitude = math.sqrt(accel['x']**2 + accel['y']**2 + accel['z']**2)
-            magnitude_diff = abs(current_magnitude - baseline_gravity)
-            pga_gal = magnitude_diff * 100
+        for _ in range(20): # 2-second telemetry push block
+            try:
+                accel = mpu.get_accel_data()
+                
+                # Digital Gravity Filter
+                grav_x = alpha * grav_x + (1.0 - alpha) * accel['x']
+                grav_y = alpha * grav_y + (1.0 - alpha) * accel['y']
+                grav_z = alpha * grav_z + (1.0 - alpha) * accel['z']
+
+                dyn_x = accel['x'] - grav_x
+                dyn_y = accel['y'] - grav_y
+                dyn_z = accel['z'] - grav_z
+                
+                latest_x, latest_y, latest_z = accel['x'], accel['y'], accel['z']
+                
+                # Calculate physical energy
+                dyn_mag = math.sqrt(dyn_x**2 + dyn_y**2 + dyn_z**2)
+                energy = dyn_mag ** 2
+                
+                # Feed the algorithms
+                lta_window.append(energy)
+                sta_window.append(energy)
+                
+                if len(lta_window) > 300: lta_window.pop(0) # Keep at 30 seconds
+                if len(sta_window) > 10: sta_window.pop(0)  # Keep at 1 second
+                
+                # Only run logic if we have gathered at least 10 seconds of background noise
+                if len(lta_window) >= 100:
+                    lta_avg = sum(lta_window) / len(lta_window)
+                    sta_avg = sum(sta_window) / len(sta_window)
+                    
+                    # Guard against division by zero in a perfectly silent room
+                    if lta_avg < 0.01: lta_avg = 0.01 
+                    
+                    ratio = sta_avg / lta_avg
+                    
+                    # P-WAVE TRIGGER: Sudden energy is 6x background noise AND physical shake is > 0.8m/s2
+                    if ratio > 6.0 and dyn_mag > 0.8:
+                        triggered_in_window = True
+                        pga_gal = dyn_mag * 100
+                        richter = round(((math.log10(pga_gal) - 0.014) / 0.3), 1)
+                        if richter > max_richter_window: max_richter_window = richter
+
+            except: pass
+            time.sleep(0.1) 
             
-            if pga_gal > 5: richter = round(((math.log10(pga_gal) - 0.014) / 0.3), 1)
-            else: richter = 0.0
-            bg_data["richter"] = richter
-
-            if richter >= 4.5:
-                bg_data["eq_status"] = "🚨 DETECTED!"
-                if bg_data["earthquake_armed"]:
-                    trigger_full_alarm(f"🌍 CRITICAL: EARTHQUAKE DETECTED! Mag: {richter}")
-            else:
-                bg_data["eq_status"] = "✅ Safe"
-        except: pass
+        # Push telemetry updates outside the rapid loop
+        bg_data["accel_x"] = round(latest_x, 2)
+        bg_data["accel_y"] = round(latest_y, 2)
+        bg_data["accel_z"] = round(latest_z, 2)
         
-        time.sleep(2) 
+        if triggered_in_window:
+            # Force at least a 4.5+ reading to trigger Home Assistant automations
+            bg_data["richter"] = max_richter_window if max_richter_window >= 4.5 else 4.6 
+            bg_data["eq_status"] = "🚨 DETECTED!"
+            if bg_data["earthquake_armed"]:
+                trigger_full_alarm(f"🌍 P-WAVE DETECTED! Mag: {bg_data['richter']}")
+        else:
+            # LOCK dashboard to absolute ZERO when safe to prevent all HA False Alarms
+            bg_data["richter"] = 0.0
+            bg_data["eq_status"] = "✅ Safe"
 
 threading.Thread(target=security_watchdog_thread, daemon=True).start()
 
@@ -191,8 +241,7 @@ threading.Thread(target=security_watchdog_thread, daemon=True).start()
 # DATE CALCULATION LOGIC
 # ==========================================
 def get_safe_bangla_date():
-    if not BANGLA_AVAILABLE: 
-        return "Bangla Lib Missing" # Tells you immediately if pip3 install failed
+    if not BANGLA_AVAILABLE: return "Bangla Lib Missing" 
     try:
         b_dict = bangla.get_date()
         b_nums = {"০":"0", "১":"1", "২":"2", "৩":"3", "৪":"4", "৫":"5", "৬":"6", "৭":"7", "৮":"8", "৯":"9"}
@@ -218,7 +267,7 @@ def get_safe_bangla_date():
         if month_eng != "Unknown":
             return f"{day} {month_eng} {year}"
         else:
-            return f"{day} {raw_month} {year}" # Fallback
+            return f"{day} {raw_month} {year}" 
     except Exception as e: 
         return "Date Syncing..."
 
@@ -325,8 +374,9 @@ last_turn = time.time()
 
 while True:
     now = datetime.datetime.now()
-    # if (now.hour == 0 and now.minute >= 30) or (1 <= now.hour < 5):
-    #     disp.fill(0); disp.show(); time.sleep(60); continue
+    
+    if (now.hour == 0 and now.minute >= 30) or (1 <= now.hour < 5):
+        disp.fill(0); disp.show(); time.sleep(60); continue
 
     curr_time = time.time()
     dt = curr_time - last_time
@@ -373,21 +423,16 @@ while True:
         if bg_data["iface"] == "No Internet Connection": lines = ["No Internet", "Connection", "Offline"]
         else: lines = [bg_data["iface"], f"D:{format_speed(net_down)} | U:{format_speed(net_up)}", f"Ping: {bg_data['ping']}"]
     
-    # -----------------------------------------------------
-    # DYNAMIC PAGE 3: ENVIRONMENT OR EARTHQUAKE ALERT
-    # -----------------------------------------------------
     elif page == 3:
         try: richter_float = float(bg_data.get("richter", 0.0))
         except: richter_float = 0.0
         
-        # If an earthquake is happening right now, take over the screen
         if richter_float > 2.0:
             lines = [
                 "⚠️ SEISMIC ALERT ⚠️",
                 f"Mag: {bg_data['richter']} Richter",
                 f"Status: {bg_data['eq_status']}"
             ]
-        # Otherwise, show standard room environment
         else:
             lines = [
                 f"Room Temp: {bg_data.get('bme_t','--')} C", 

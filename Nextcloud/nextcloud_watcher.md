@@ -1,24 +1,24 @@
-# Nextcloud Watcher Script (`nextcloud_watcher.sh`)
+# 🚀 Release Notes
 
-## Overview
+### Changes in `nextcloud_watcher.sh`:
+1. **No functional changes**: The new code is identical to the old code. No updates or modifications have been made to the script.
 
-The `nextcloud_watcher.sh` script is a file monitoring and synchronization utility designed for Nextcloud deployments. It leverages `inotifywait` to monitor specific directories for file changes and automatically triggers Nextcloud's file scanning process to ensure that the Nextcloud file index remains up-to-date. This script is optimized for UTF-8 encoding and is designed to work seamlessly with Dockerized Nextcloud instances.
+---
+
+# Nextcloud File Watcher Script
+
+This script, `nextcloud_watcher.sh`, is designed to monitor specific directories for file changes and synchronize them with a Nextcloud instance. It uses the `inotifywait` tool to detect file system events and triggers Nextcloud's `occ files:scan` command to update the file index.
 
 ## Features
-
-- **Real-Time File Monitoring**: Watches specified directories for file changes, including file creation, modifications, and moves.
-- **Automatic Nextcloud Sync**: Automatically triggers Nextcloud's `files:scan` command to update the file index whenever changes are detected.
-- **Multi-Watcher Support**: Supports multiple directory watchers with independent configurations.
-- **Safety Exclusions**: Allows exclusion of specific files or directories from monitoring to prevent unnecessary processing.
-- **UTF-8 Optimization**: Ensures compatibility with UTF-8 encoded file paths.
+- **Real-time File Monitoring**: Watches specified directories for changes such as file creation, modification, or movement.
+- **Directory Exclusions**: Allows exclusion of specific files or directories from being monitored.
+- **Nextcloud Integration**: Automatically updates the Nextcloud file index when changes are detected.
+- **Multi-directory Support**: Monitors multiple directories simultaneously.
 
 ## Prerequisites
-
-Before using this script, ensure the following prerequisites are met:
-
-1. **Nextcloud Instance**: A running Nextcloud instance, preferably in a Docker container.
-2. **Docker**: Docker must be installed and running on the host system.
-3. **inotify-tools**: The `inotifywait` command must be available. Install it using your package manager:
+1. **Nextcloud Setup**: Ensure you have a running Nextcloud instance with the `occ` command available.
+2. **Docker**: The script assumes that Nextcloud is running in a Docker container named `nextcloud-app-1`.
+3. **inotify-tools**: The script relies on the `inotifywait` command, which is part of the `inotify-tools` package. Install it using your package manager:
    ```bash
    sudo apt-get install inotify-tools
    ```
@@ -27,72 +27,60 @@ Before using this script, ensure the following prerequisites are met:
    chmod +x nextcloud_watcher.sh
    ```
 
-## Script Details
-
-### Watcher 1: CCTV SSD
-
-- **Monitored Directory**: `/mnt/cctv_ssd/`
-- **Excluded Patterns**: Files or directories matching `Camera1`, `cctv`, or `lost+found`.
-- **Nextcloud Path**: `redwansdrive/files/cctv_ssd`
-- **Trigger Events**: 
-  - File creation
-  - File move
-  - File close after write
-
-### Watcher 2: USB Backup Pendrive
-
-- **Monitored Directory**: `/mnt/usb_backup/`
-- **Nextcloud Path**: `redwansdrive/files/usb_backup`
-- **Trigger Events**: 
-  - File creation
-  - File move
-  - File close after write
-
-### Master Script Behavior
-
-The script runs both watchers in the background and uses the `wait` command to keep the master process alive indefinitely.
-
 ## Usage
-
-1. **Edit the Script**: Update the paths and Nextcloud configurations as needed:
-   - Replace `/mnt/cctv_ssd/` and `/mnt/usb_backup/` with the directories you want to monitor.
-   - Replace `redwansdrive/files/cctv_ssd` and `redwansdrive/files/usb_backup` with the corresponding Nextcloud paths.
-
-2. **Run the Script**:
+1. **Start the Script**:
+   Run the script to start monitoring the specified directories:
    ```bash
    ./nextcloud_watcher.sh
    ```
 
-3. **Stop the Script**:
-   Use `Ctrl+C` to terminate the script.
+2. **Monitored Directories**:
+   - `/mnt/cctv_ssd/`: Watches for changes while excluding files or directories matching `(Camera1|cctv|lost+found)`.
+   - `/mnt/usb_backup/`: Watches for all changes in this directory.
 
-## Example Output
+3. **File Events Monitored**:
+   - `close_write`: Triggered when a file is closed after being written to.
+   - `moved_to`: Triggered when a file is moved into the directory.
+   - `create`: Triggered when a new file is created.
 
-When a file change is detected, the script outputs messages similar to the following:
+4. **Nextcloud Synchronization**:
+   - For `/mnt/cctv_ssd/`, changes are synced to `redwansdrive/files/cctv_ssd` in Nextcloud.
+   - For `/mnt/usb_backup/`, changes are synced to `redwansdrive/files/usb_backup` in Nextcloud.
 
-```
-Starting Nexus Hub Unified File Watcher (UTF-8 Optimized)...
-[CCTV SSD] Change detected: example_file.mp4. Syncing...
-[USB BACKUP] Change detected: backup_file.zip. Syncing...
-```
+## Script Details
+### Watcher 1: CCTV SSD
+- Monitors `/mnt/cctv_ssd/` for file changes.
+- Excludes files or directories matching the regex `(Camera1|cctv|lost+found)`.
+- On detecting a change, it triggers the following Nextcloud command:
+  ```bash
+  docker exec -e LANG=C.UTF-8 -u www-data nextcloud-app-1 php occ files:scan --path="redwansdrive/files/cctv_ssd"
+  ```
 
-## Customization
+### Watcher 2: USB Backup Pendrive
+- Monitors `/mnt/usb_backup/` for file changes.
+- On detecting a change, it triggers the following Nextcloud command:
+  ```bash
+  docker exec -e LANG=C.UTF-8 -u www-data nextcloud-app-1 php occ files:scan --path="redwansdrive/files/usb_backup"
+  ```
 
-- **Exclusions**: Modify the `--exclude` parameter in Watcher 1 to add or remove patterns for files/directories you want to ignore.
-- **Additional Watchers**: Add more `inotifywait` watchers by copying and modifying the existing watcher blocks.
-- **Docker Container Name**: Update `nextcloud-app-1` with the name of your Nextcloud Docker container.
+### Script Lifecycle
+- The script runs indefinitely, keeping the watchers active.
+- The `wait` command at the end ensures the script does not terminate prematurely.
 
 ## Troubleshooting
+- **`inotifywait: command not found`**: Ensure `inotify-tools` is installed.
+- **Permission Denied**: Ensure the script has execute permissions and the user has access to the monitored directories.
+- **Docker Errors**: Verify that the Docker container name (`nextcloud-app-1`) matches your Nextcloud container's name.
+- **Nextcloud Errors**: Ensure the paths specified in the `occ files:scan` commands exist in your Nextcloud instance.
 
-- **`inotifywait` Not Found**: Ensure `inotify-tools` is installed.
-- **Permission Denied**: Run the script with appropriate permissions or as a user with access to the monitored directories.
-- **Docker Command Fails**: Verify the Docker container name and ensure the container is running.
+## Customization
+- **Modify Monitored Directories**: Update the paths `/mnt/cctv_ssd/` and `/mnt/usb_backup/` to match your desired directories.
+- **Adjust Exclusions**: Edit the `--exclude` regex in Watcher 1 to exclude additional files or directories.
+- **Change Nextcloud Paths**: Update the `--path` argument in the `occ files:scan` commands to match your Nextcloud directory structure.
 
 ## Notes
-
-- This script is designed for environments where Nextcloud is running in a Docker container. For non-Dockerized setups, modify the `docker exec` commands accordingly.
-- The script runs indefinitely. Consider using a process manager like `systemd` or `supervisord` to manage its lifecycle in production environments.
+- This script is designed to run continuously. Consider running it as a background process or using a process manager like `systemd` or `screen` for persistent monitoring.
+- Ensure that the monitored directories are mounted and accessible before starting the script.
 
 ## License
-
 This script is provided under the MIT License. Feel free to modify and distribute it as needed.
