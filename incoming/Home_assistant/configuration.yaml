@@ -1,0 +1,414 @@
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - "::1"
+    - 172.17.0.2
+    - 172.17.0.0/16
+    - 192.168.0.0/16
+    - 10.0.0.0/8
+
+homeassistant:
+  allowlist_external_dirs:
+    - /config/www
+
+# ==========================================
+# DASHBOARD CONTROLS
+# ==========================================
+input_boolean:
+  show_pi_power_history:
+    name: "Show Pi Power History"
+    icon: mdi:chart-bar
+  earthquake_alarm_armed:
+    name: "Earthquake Alarm Armed"
+    icon: mdi:vibrate
+
+# ==========================================
+# SHELL COMMANDS
+# ==========================================
+shell_command:
+  run_ha_backup: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."  
+  restart_nextcloud: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."
+  restart_cctv: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."
+  export_flight: >
+    sh -c "echo \"{{ log_data | replace('\'', '') }}\" >> /config/www/flight_history.csv"
+  cleanup_flight_log: >
+    tail -n 1000 /config/www/flight_history.csv > /config/www/tmp.csv && mv /config/www/tmp.csv /config/www/flight_history.csv
+  cleanup_helicopter_log: >
+    tail -n 1000 /config/www/helicopter_history.csv > /config/www/tmp_heli.csv && mv /config/www/tmp_heli.csv /config/www/helicopter_history.csv
+
+# ==========================================
+# COMMAND LINE SENSORS (With Safety Nets)
+# ==========================================
+command_line:
+  - sensor:
+      name: "RPi5 Fan Speed"
+      command: "cat /config/fan_speed.txt"
+      unit_of_measurement: "RPM"
+      scan_interval: 15
+      value_template: "{{ value | float(0) }}"
+  - sensor:
+      name: "Main NVMe Health"
+      command: "cat /config/nvme_health.txt"
+      unit_of_measurement: "%"
+      icon: mdi:harddisk
+      scan_interval: 60
+      value_template: "{{ value | float(0) }}"
+  - sensor:
+      name: "CCTV SSD Health"
+      command: "cat /config/sda_health.txt"
+      unit_of_measurement: "%"
+      icon: mdi:harddisk
+      scan_interval: 60
+      value_template: "{{ value | float(0) }}"
+  - sensor:
+      name: "RPi5 Live Power Draw"
+      unique_id: rpi5_live_power_draw_unique
+      command: "cat /config/power_draw.txt"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      scan_interval: 15
+      value_template: "{{ value | float(0) }}"
+
+# ==========================================
+# ENERGY TRACKING ENGINE
+# ==========================================
+sensor:
+  - platform: integration
+    source: sensor.rpi5_live_power_draw
+    name: "RPi5 Total Energy"
+    unique_id: rpi5_total_energy_tracker_unique
+    unit_prefix: k
+    round: 3
+    method: left
+  - platform: integration
+    source: sensor.predator_live_power_draw
+    name: "Predator Total Energy Accumulated"
+    unique_id: predator_total_energy_accumulated_kwh
+    unit_prefix: k
+    round: 3
+    method: left
+  - platform: integration
+    source: sensor.redwan_s_s23_battery_power
+    name: "Redwan's S23 Total Energy"
+    unique_id: redwan_s_s23_total_energy_kwh
+    unit_prefix: k
+    round: 3
+    method: left
+  - platform: integration
+    source: sensor.redwan_s_s10_fe_battery_power
+    name: "Redwan's S10 FE Total Energy"
+    unique_id: redwan_s_s10_fe_total_energy_kwh
+    unit_prefix: k
+    round: 3
+    method: left    
+  - platform: integration
+    source: sensor.ahlia_s_redmi_note_8_battery_power
+    name: "Ahlia's Note 8 Total Energy"
+    unique_id: ahlia_s_redmi_note_8_total_energy_kwh
+    unit_prefix: k
+    round: 3
+    method: left
+
+utility_meter:
+  rpi5_daily_electricity:
+    source: sensor.rpi5_total_energy
+    name: "RPi5 Daily Electricity"
+    unique_id: rpi5_daily_electricity_tracker_unique
+    cycle: daily
+  rpi5_monthly_electricity:
+    source: sensor.rpi5_total_energy
+    name: "RPi5 Monthly Electricity"
+    unique_id: rpi5_monthly_electricity_tracker_unique
+    cycle: monthly
+
+  predator_daily_electricity:
+    source: sensor.predator_total_energy_accumulated
+    name: "Predator Daily Electricity Usage"
+    unique_id: predator_daily_electricity_usage_meter
+    cycle: daily
+    
+  predator_monthly_electricity:
+    source: sensor.predator_total_energy_accumulated
+    name: "Predator Monthly Electricity Usage"
+    unique_id: predator_monthly_electricity_usage_meter
+    cycle: monthly  
+
+# ==========================================
+# CONSOLIDATED MQTT ENGINE
+# ==========================================
+mqtt:
+  binary_sensor:
+    - name: "CSI Room Occupancy"
+      state_topic: "home/room/occupancy"
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: occupancy
+    - name: "Kitchen Emergency Status"
+      state_topic: "home/alarms/kitchen"
+      payload_on: "TRIGGERED"
+      payload_off: "SAFE"
+      device_class: smoke
+  sensor:
+    - name: "Kitchen Temperature"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.temp | round(1) }}"
+      unit_of_measurement: "°C"
+      device_class: temperature
+      state_class: measurement
+    - name: "Kitchen Humidity"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.hum | round(0) }}"
+      unit_of_measurement: "%"
+      device_class: humidity
+      state_class: measurement
+    - name: "Kitchen Barometric Pressure"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.pressure | round(1) }}"
+      unit_of_measurement: "hPa"
+      device_class: atmospheric_pressure
+      state_class: measurement
+    - name: "Kitchen Gas Concentration"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.gas }}"
+      unit_of_measurement: "PPM"
+      state_class: measurement
+    - name: "Kitchen UPS Rail Voltage"
+      state_topic: "home/sensors/kitchen"
+      value_template: "{{ value_json.batt_volts | round(2) }}"
+      unit_of_measurement: "V"
+      device_class: voltage
+      state_class: measurement
+
+# ==========================================
+# SYSTEM RECORDER & DATABASE
+# ==========================================
+recorder:
+  purge_keep_days: 2
+  commit_interval: 60
+  exclude:
+    domains:
+      - sun
+      - weather
+      - camera
+      - update
+    entities:
+      - sensor.time
+      - sensor.date
+      - sensor.airspace_surveillance_log_10km
+      - sensor.helicopter_surveillance_log_10km
+
+# ==========================================
+# ADVANCED TEMPLATE SENSORS
+# ==========================================
+template:
+  - trigger:
+      - platform: event
+        event_type: flightradar24_exit
+    sensor:
+      - unique_id: local_airspace_surveillance_history
+        name: "Airspace Surveillance Log (10km)"
+        icon: mdi:plane
+        state: >-
+          {{ trigger.event.data.flight_id | default(now().timestamp(), true) }}
+        attributes:
+          flights: >-
+            {% set n = 50 %}
+            {% set m = this.attributes.flights | count | default(0) %}
+            {{ [ trigger.event.data ] + ( [] if m == 0 else this.attributes.flights[0:n-1] ) }}
+            
+  - trigger:
+      - platform: state
+        entity_id: sensor.flightradar24_helicopters_in_area
+        attribute: flights
+    sensor:
+      - name: "Helicopter Surveillance Log 10km"
+        unique_id: helicopter_surveillance_log_10km
+        icon: mdi:history
+        state: "{{ trigger.to_state.state }}"
+        attributes:
+          flights: >
+            {% set saved_history = this.attributes.flights | default([], true) %}
+            {% set saved_ids = saved_history | map(attribute='id') | list %}
+            {% set new_flights = trigger.to_state.attributes.flights | default([]) %}
+            {% set ns = namespace(new_arrivals=[]) %}
+            {% for flight in new_flights %}
+              {% if flight.id not in saved_ids %}
+                {% set ns.new_arrivals = ns.new_arrivals + [flight] %}
+              {% endif %}
+            {% endfor %}
+            {{ (ns.new_arrivals + saved_history)[:5] }}
+            
+  - sensor:
+      # --- FASTING TIMES ---
+      - name: "Next Sahri Ends"
+        icon: mdi:weather-night
+        state: "{{ states('sensor.islamic_prayer_times_fajr_prayer') }}"
+      - name: "Next Iftar"
+        icon: mdi:weather-sunset-down
+        state: "{{ states('sensor.islamic_prayer_times_maghrib_prayer') }}"
+        
+      # --- DYNAMIC WAQT & PROHIBITED TIME LOGIC ---
+      - name: "Active Waqt Details"
+        state: >
+          {% set now = as_timestamp(now()) %}
+          {% set f = as_timestamp(states('sensor.islamic_prayer_times_fajr_prayer'), 0) %}
+          {% set s = as_timestamp(states('sensor.islamic_prayer_times_sunrise_time'), 0) %}
+          {% set d = as_timestamp(states('sensor.islamic_prayer_times_dhuhr_prayer'), 0) %}
+          {% set a = as_timestamp(states('sensor.islamic_prayer_times_asr_prayer'), 0) %}
+          {% set m = as_timestamp(states('sensor.islamic_prayer_times_maghrib_prayer'), 0) %}
+          {% set i = as_timestamp(states('sensor.islamic_prayer_times_isha_prayer'), 0) %}
+          {% if f == 0 %} Calculating...
+          {% elif now >= s and now < (s + 900) %} 🚫 PROHIBITED (Sunrise)
+          {% elif now >= (d - 600) and now < d %} 🚫 PROHIBITED (Zawal)
+          {% elif now >= (m - 900) and now < m %} 🚫 PROHIBITED (Sunset)
+          {% elif now < f %} Tahajjud
+          {% elif now < s %} Fajr
+          {% elif now < d %} Ishraq / Duha
+          {% elif now < a %} Dhuhr
+          {% elif now < m %} Asr
+          {% elif now < i %} Maghrib
+          {% else %} Isha
+          {% endif %}
+          
+      # --- HUMAN READABLE COUNTDOWN ---
+      - name: "Time Until Next Event Formatted"
+        icon: mdi:timer-sand
+        state: >
+          {% set now = as_timestamp(now()) %}
+          {% set times = [
+            as_timestamp(states('sensor.islamic_prayer_times_fajr_prayer'), 0),
+            as_timestamp(states('sensor.islamic_prayer_times_sunrise_time'), 0) + 900,
+            as_timestamp(states('sensor.islamic_prayer_times_dhuhr_prayer'), 0),
+            as_timestamp(states('sensor.islamic_prayer_times_asr_prayer'), 0),
+            as_timestamp(states('sensor.islamic_prayer_times_maghrib_prayer'), 0),
+            as_timestamp(states('sensor.islamic_prayer_times_isha_prayer'), 0)
+          ] %}
+          {% set future_times = times | select('>', now) | list %}
+          {% set next_time = future_times[0] | default(now + 86400) %}
+          {% set mins = ((next_time - now) / 60) | int %}
+          {% set h = (mins / 60) | int %}
+          {% set m = mins % 60 %}
+          {% if h > 0 %}{{ h }} hr {{ m }} min{% else %}{{ m }} min{% endif %}
+          
+      # --- GAUGE PERCENTAGE (0 to 100%) ---
+      - name: "Waqt Progress Percentage"
+        unit_of_measurement: "%"
+        state: >
+          {% set now = as_timestamp(now()) %}
+          {% set times = [
+            as_timestamp(states('sensor.islamic_prayer_times_fajr_prayer'), 0),
+            as_timestamp(states('sensor.islamic_prayer_times_sunrise_time'), 0),
+            as_timestamp(states('sensor.islamic_prayer_times_dhuhr_prayer'), 0),
+            as_timestamp(states('sensor.islamic_prayer_times_asr_prayer'), 0),
+            as_timestamp(states('sensor.islamic_prayer_times_maghrib_prayer'), 0),
+            as_timestamp(states('sensor.islamic_prayer_times_isha_prayer'), 0)
+          ] %}
+          {% set past_times = times | select('<', now) | list %}
+          {% set future_times = times | select('>', now) | list %}
+          {% set start = past_times | last | default(now - 3600) %}
+          {% set end = future_times | first | default(now + 3600) %}
+          {% set total = end - start %}
+          {% set elapsed = now - start %}
+          {{ ((elapsed / total) * 100) | int }}
+
+      # --- ROUTER UPTIME FORMATTER ---
+      - name: "Tenda Uptime Formatted"
+        icon: mdi:clock-outline
+        state: >
+          {% set u = states('sensor.wireless_router_uptime') | int(0) %}
+          {% set d = (u / 86400) | int %}
+          {% set h = ((u % 86400) / 3600) | int %}
+          {% set m = ((u % 3600) / 60) | int %}
+          {% set s = u % 60 %}
+          {% if d > 0 %}{{ d }}d {{ h }}h {{ m }}m
+          {% elif h > 0 %}{{ h }}h {{ m }}m {{ s }}s
+          {% else %}{{ m }}m {{ s }}s
+          {% endif %}
+
+      # --- PREDATOR LIVE POWER ESTIMATION ENGINE ---
+      - name: "Predator Live Power Draw"
+        unique_id: predator_live_power_draw_estimated
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:flash
+        state: >
+          {% set battery_status = states('sensor.redwans_predato_battery_powerline_status') %}
+          {% if battery_status == 'Offline' %}
+            {{ 15.0 }}
+          {% else %}
+            {% set cpu = states('sensor.redwans_predato_cpuload') | float(0) %}
+            {% set gpu = states('sensor.redwans_predato_gpuload') | float(0) %}
+            {% set calculated_watts = 25.0 + ((cpu / 100) * 55.0) + ((gpu / 100) * 115.0) %}
+            {{ calculated_watts | round(1) }}
+          {% endif %}
+
+# ==========================================
+# EXTERNAL SERVICES
+# ==========================================
+zone:
+  - name: "10km Airspace Dome"
+    latitude: 23.6991875
+    longitude: 90.4531719
+    radius: 10000
+    icon: mdi:radar
+
+geo_location:
+  - platform: usgs_earthquakes_feed
+    feed_type: "past_week_m45_earthquakes"
+    radius: 1500
+    minimum_magnitude: 4.5
+    latitude: 23.6991875
+    longitude: 90.4531719
+
+rest_command:
+  qbit_pause_all:
+    url: "http://192.168.0.40:8082/api/v2/torrents/pause"
+    method: POST
+    payload: "hashes=all"
+    content_type: "application/x-www-form-urlencoded"
+  qbit_resume_all:
+    url: "http://192.168.0.40:8082/api/v2/torrents/resume"
+    method: POST
+    payload: "hashes=all"
+    content_type: "application/x-www-form-urlencoded"
+
+google_assistant:
+  project_id: redwans-smart-home-hub
+  service_account: !include SERVICE_ACCOUNT.json
+  report_state: true
+  expose_by_default: false
+  entity_config:
+    # --- SCRIPTS (Voice Commands) ---
+    script.restart_nextcloud_server:
+      expose: true
+      name: "Nextcloud Server"
+    script.arm_earthquake_system:
+      expose: true
+      name: "Earthquake Alarm"
+      
+    # --- SWITCHES & TOGGLES ---
+    input_boolean.show_pi_power_history:
+      expose: true
+      name: "Pi Power Graph"
+      
+    # --- ENVIRONMENTAL SENSORS (For "What is the..." queries) ---
+    sensor.kitchen_temperature:
+      expose: true
+      name: "Kitchen Temperature"
+    sensor.kitchen_humidity:
+      expose: true
+      name: "Kitchen Humidity"
