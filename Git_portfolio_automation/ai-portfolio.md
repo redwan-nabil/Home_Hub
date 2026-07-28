@@ -71,11 +71,12 @@ This job runs the portfolio automation process. Below are the steps involved:
    ```
 
 5. **Auto-Commit Changes**  
-   The `stefanzweifel/git-auto-commit-action@v5` action is used to automatically commit the changes made by the AI script back to the repository:
+   A shell step commits generated changes and retries `pull --rebase` + `push` up to 3 times to avoid non-fast-forward failures when the branch tip changes during the run:
    ```yaml
-   - uses: stefanzweifel/git-auto-commit-action@v5
-     with:
-       commit_message: "🤖 AI Automated Portfolio Build (GitHub Native AI)"
+   - name: Commit and Push Changes
+     run: |
+       # commits generated files
+       # retries pull --rebase + push up to 3 times
    ```
 
 ---
