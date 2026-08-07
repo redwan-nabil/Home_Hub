@@ -33,6 +33,9 @@ input_boolean:
   earthquake_alarm_armed:
     name: "Earthquake Alarm Armed"
     icon: mdi:vibrate
+  kobold_alarm_trigger:
+    name: "Kobold Alarm Ringing State"
+    icon: mdi:alarm-bell
 
 # ==========================================
 # SHELL COMMANDS
@@ -147,20 +150,97 @@ utility_meter:
     cycle: monthly  
 
 # ==========================================
-# CONSOLIDATED MQTT ENGINE
+# CONSOLIDATED MQTT ENGINE (ALL DEVICES GROUPED)
 # ==========================================
 mqtt:
+  switch:
+    # --- DEVICE 1: EMERGENCY SIREN CONTROL SWITCH ---
+    - name: "Master Emergency Siren Control"
+      unique_id: "redwans_master_node_siren_switch_01"
+      command_topic: "home/master_node/siren/set"
+      state_topic: "home/master_node/siren/state"
+      payload_on: "ON"
+      payload_off: "OFF"
+      icon: "mdi:alarm-light"
+      qos: 1
+      retain: true
+      device:
+        identifiers: ["redwans_master_node"]
+        name: "REDWAN-MASTER-NODE"
+        model: "ESP32 WROOM Center Hub"
+        manufacturer: "Expressif / Redwan"
+
+    # --- DEVICE 2: EMERGENCY SOFTAP OVERRIDE SWITCH ---
+    - name: "Master Emergency AP Mode Override"
+      unique_id: "redwans_master_node_ap_switch_01"
+      command_topic: "home/master_node/ap_mode/set"
+      state_topic: "home/master_node/ap_mode/state"
+      payload_on: "ON"
+      payload_off: "OFF"
+      icon: "mdi:wifi-access-point"
+      qos: 1
+      retain: true
+      device:
+        identifiers: ["redwans_master_node"]
+        name: "REDWAN-MASTER-NODE"
+        model: "ESP32 WROOM Center Hub"
+        manufacturer: "Expressif / Redwan"
+
   binary_sensor:
     - name: "CSI Room Occupancy"
       state_topic: "home/room/occupancy"
       payload_on: "ON"
       payload_off: "OFF"
       device_class: occupancy
+
     - name: "Kitchen Emergency Status"
       state_topic: "home/alarms/kitchen"
       payload_on: "TRIGGERED"
       payload_off: "SAFE"
       device_class: smoke
+
+    # --- DEVICE 1: BATHROOM RADAR NODE ---
+    - name: "Bathroom Occupancy Radar"
+      state_topic: "home/bathroom/light/state"
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: occupancy
+      unique_id: "redwans_bath_node_occupancy_01"
+      device:
+        identifiers: ["redwans_bath_node"]
+        name: "REDWAN-BATH-NODE"
+        model: "HLK-LD2410B Radar"
+        manufacturer: "Hi-Link"
+
+# --- DEVICE 3: MASTER CENTER NODE (ALARM STATE) ---
+    - name: "Master Siren Alarm Active"
+      unique_id: "redwans_master_node_alarm_state_01"
+      state_topic: "home/alarms/master_siren"
+      payload_on: "TRIGGERED"
+      payload_off: "SAFE"
+      device_class: safety
+      qos: 1
+      device:
+        identifiers: ["redwans_master_node"]
+        name: "REDWAN-MASTER-NODE"
+        model: "ESP32 WROOM Center Hub"
+        manufacturer: "Expressif / Redwan"
+
+    # --- DEVICE 4: EMERGENCY AP BROADCASTING STATE ---
+    - name: "Master AP Mode Active"
+      unique_id: "redwans_master_node_ap_binary_01"
+      state_topic: "home/master_node/ap_mode/state"
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      icon: "mdi:access-point-network"
+      qos: 1
+      device:
+        identifiers: ["redwans_master_node"]
+        name: "REDWAN-MASTER-NODE"
+        model: "ESP32 WROOM Center Hub"
+        manufacturer: "Expressif / Redwan"
+
   sensor:
     - name: "Kitchen Temperature"
       state_topic: "home/sensors/kitchen"
@@ -168,23 +248,27 @@ mqtt:
       unit_of_measurement: "°C"
       device_class: temperature
       state_class: measurement
+
     - name: "Kitchen Humidity"
       state_topic: "home/sensors/kitchen"
       value_template: "{{ value_json.hum | round(0) }}"
       unit_of_measurement: "%"
       device_class: humidity
       state_class: measurement
+
     - name: "Kitchen Barometric Pressure"
       state_topic: "home/sensors/kitchen"
       value_template: "{{ value_json.pressure | round(1) }}"
       unit_of_measurement: "hPa"
       device_class: atmospheric_pressure
       state_class: measurement
+
     - name: "Kitchen Gas Concentration"
       state_topic: "home/sensors/kitchen"
       value_template: "{{ value_json.gas }}"
       unit_of_measurement: "PPM"
       state_class: measurement
+
     - name: "Kitchen UPS Rail Voltage"
       state_topic: "home/sensors/kitchen"
       value_template: "{{ value_json.batt_volts | round(2) }}"
@@ -192,23 +276,94 @@ mqtt:
       device_class: voltage
       state_class: measurement
 
+# --- DEVICE 5: MASTER CENTER NODE (SIREN REASON) ---
+    - name: "Master Center Node Siren Status"
+      unique_id: "redwans_master_node_siren_reason_01"
+      state_topic: "home/alarms/reason"
+      icon: "mdi:alarm-bell"
+      qos: 1
+      device:
+        identifiers: ["redwans_master_node"]
+        name: "REDWAN-MASTER-NODE"
+        model: "ESP32 WROOM Center Hub"
+        manufacturer: "Expressif / Redwan"
+
+    # --- DEVICE 6: EMERGENCY AP IP & NETWORK STATUS ---
+    - name: "Master AP Network Status"
+      unique_id: "redwans_master_node_ap_status_01"
+      state_topic: "home/master_node/ap_mode/status"
+      icon: "mdi:ip-network"
+      qos: 1
+      device:
+        identifiers: ["redwans_master_node"]
+        name: "REDWAN-MASTER-NODE"
+        model: "ESP32 WROOM Center Hub"
+        manufacturer: "Expressif / Redwan"
+
+  light:
+    # --- DEVICE 1: BATHROOM RADAR NODE ---
+    - name: "redwans_bath_node_light"
+      unique_id: "redwans_bath_node_light_01"
+      state_topic: "home/bathroom/light/state"
+      command_topic: "home/bathroom/light/mode_cmd"
+      payload_on: "ON"
+      payload_off: "OFF"
+      optimistic: false
+      qos: 1
+      retain: true
+      device:
+        identifiers: ["redwans_bath_node"]
+        name: "REDWAN-BATH-NODE"
+        model: "HLK-LD2410B Radar"
+        manufacturer: "Hi-Link"
+
+  select:
+    # --- DEVICE 1: BATHROOM RADAR NODE ---
+    - name: "Bathroom Light Override Mode"
+      state_topic: "home/bathroom/light/mode_state"
+      command_topic: "home/bathroom/light/mode_cmd"
+      options:
+        - "AUTO"
+        - "ON"
+        - "OFF"
+      unique_id: "redwans_bath_node_override_select_01"
+      device:
+        identifiers: ["redwans_bath_node"]
+        name: "REDWAN-BATH-NODE"
+        model: "HLK-LD2410B Radar"
+        manufacturer: "Hi-Link"
+ 
 # ==========================================
 # SYSTEM RECORDER & DATABASE
 # ==========================================
 recorder:
   purge_keep_days: 2
   commit_interval: 60
+  
+  # 1. Block massive domains entirely from background processing
   exclude:
     domains:
       - sun
       - weather
       - camera
       - update
+      - systemmonitor
+      - uptime_kuma
+      - ping
+      - device_tracker
+      - automation
+      - script
+      - scene
+      - sensor
+      - binary_sensor
+  # 2. Only record what you actually want to see graphs for
+  include:
     entities:
-      - sensor.time
-      - sensor.date
-      - sensor.airspace_surveillance_log_10km
-      - sensor.helicopter_surveillance_log_10km
+      - sensor.kitchen_temperature
+      - sensor.kitchen_humidity
+      - input_boolean.kobold_alarm_trigger
+      - sensor.main_nvme_health
+      - sensor.cctv_ssd_health
 
 # ==========================================
 # ADVANCED TEMPLATE SENSORS
