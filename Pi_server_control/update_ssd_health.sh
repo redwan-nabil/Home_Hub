@@ -1,38 +1,73 @@
 #!/bin/bash
 
-# Force the script to load all system paths just in case
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # ==========================================
 # 1. Main NVMe Health (OS Drive)
 # ==========================================
-# Using absolute path to /usr/sbin/nvme
 NVME_USED=$(sudo /usr/sbin/nvme smart-log /dev/nvme0n1 | grep -i "percentage_used" | cut -d ':' -f 2 | tr -d ' %')
-
-# Only update the Home Assistant file if NVME_USED is actually a number
 if [[ "$NVME_USED" =~ ^[0-9]+$ ]]; then
-    NVME_HEALTH=$((100 - NVME_USED))
-    echo $NVME_HEALTH > /home/redwannabil/homeassistant/nvme_health.txt
+    echo $((100 - NVME_USED)) > /home/redwannabil/homeassistant/nvme_health.txt
 fi
 
 # ==========================================
-# 2. External CCTV SSD Health
+# 2. 120GB Database SSD Health
 # ==========================================
-# Use absolute paths for findmnt and lsblk
-CCTV_PART=$(/usr/bin/findmnt -n -o SOURCE /mnt/cctv_ssd)
+# Ask the LUKS engine for the exact physical drive
+SSD_PART=$(sudo cryptsetup status 120gb_ssd_vault 2>/dev/null | awk '/device:/ {print $2}')
 
-# Check if the dying CCTV drive has completely disconnected from the USB bus again
-if [ -n "$CCTV_PART" ]; then
-    CCTV_DRIVE=$(/usr/bin/lsblk -no pkname $CCTV_PART)
+if [ -n "$SSD_PART" ]; then
+    SSD_DRIVE=$(lsblk -no pkname "$SSD_PART" 2>/dev/null | tr -d ' ')
+    if [ -z "$SSD_DRIVE" ]; then SSD_DRIVE=$(basename "$SSD_PART"); fi
     
-    # Using absolute path to /usr/sbin/smartctl
-    SDA_HEALTH=$(sudo /usr/sbin/smartctl -A /dev/$CCTV_DRIVE | grep -i -E "Media_Wearout_Indicator|Wear_Leveling_Count|Percent_Lifetime_Remain|SSD_Life_Left" | head -n 1 | awk '{print $4}')
+    # Try to get detailed wear leveling
+    SSD_HEALTH=$(sudo smartctl -A /dev/$SSD_DRIVE 2>/dev/null | grep -i -E "Media_Wearout_Indicator|Wear_Leveling_Count|Percent_Lifetime_Remain|SSD_Life_Left" | head -n 1 | awk '{print $4}')
+    SSD_HEALTH=$(echo "$SSD_HEALTH" | sed 's/^0*//' | tr -cd '0-9')
     
-    # Only update if we successfully grabbed a number
-    if [[ "$SDA_HEALTH" =~ ^[0-9]+$ ]]; then
-        echo $SDA_HEALTH > /home/redwannabil/homeassistant/sda_health.txt
+    # FALLBACK: If the SSD hides its wear level, check if it's PASSED
+    if [ -z "$SSD_HEALTH" ] || [ "$SSD_HEALTH" -eq 0 ]; then
+        if sudo smartctl -H /dev/$SSD_DRIVE 2>/dev/null | grep -q "PASSED"; then
+            SSD_HEALTH=100
+        else
+            SSD_HEALTH=10
+        fi
     fi
+    echo "$SSD_HEALTH" > /home/redwannabil/homeassistant/sdc_health.txt
 else
-    # If the drive has physically crashed/disconnected, write 0 so you know it's dead
-    echo 0 > /home/redwannabil/homeassistant/sda_health.txt
+    echo 0 > /home/redwannabil/homeassistant/sdc_health.txt
 fi
+
+# ==========================================
+# 3. External CCTV HDD Health (HDSentinel Math)
+# ==========================================
+HDD_PART=$(sudo cryptsetup status cctv_hdd 2>/dev/null | awk '/device:/ {print $2}')
+
+if [ -n "$HDD_PART" ]; then
+    HDD_DRIVE=$(lsblk -no pkname "$HDD_PART" 2>/dev/null | tr -d ' ')
+    if [ -z "$HDD_DRIVE" ]; then HDD_DRIVE=$(basename "$HDD_PART"); fi
+    
+    # $NF guarantees we grab the absolute last column (RAW_VALUE) regardless of spacing
+    REALLOC=$(sudo smartctl -A /dev/$HDD_DRIVE 2>/dev/null | grep -i "Reallocated_Sector" | awk '{print $NF}' | tr -cd '0-9')
+    PENDING=$(sudo smartctl -A /dev/$HDD_DRIVE 2>/dev/null | grep -i "Current_Pending_Sector" | awk '{print $NF}' | tr -cd '0-9')
+    
+    REALLOC=${REALLOC:-0}
+    PENDING=${PENDING:-0}
+    
+    # Deduct 1.5% for every dead sector, and 5% for every actively failing sector
+    PENALTY_REALLOC=$(( (REALLOC * 15) / 10 ))
+    PENALTY_PENDING=$(( PENDING * 5 ))
+    HDD_HEALTH=$(( 100 - PENALTY_REALLOC - PENALTY_PENDING ))
+    
+    # Cap health between 1 and 100
+    if [ "$HDD_HEALTH" -lt 1 ]; then HDD_HEALTH=1; fi
+    if [ "$HDD_HEALTH" -gt 100 ]; then HDD_HEALTH=100; fi
+    
+    echo "$HDD_HEALTH" > /home/redwannabil/homeassistant/cctv_hdd_health.txt
+else
+    echo 0 > /home/redwannabil/homeassistant/cctv_hdd_health.txt
+fi
+
+# ==========================================
+# 4. Fix Permissions for Home Assistant
+# ==========================================
+sudo chmod 666 /home/redwannabil/homeassistant/*.txt
