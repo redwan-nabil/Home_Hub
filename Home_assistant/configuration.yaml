@@ -66,15 +66,22 @@ command_line:
       command: "cat /config/nvme_health.txt"
       unit_of_measurement: "%"
       icon: mdi:harddisk
-      scan_interval: 60
+      scan_interval: 600
       value_template: "{{ value | float(0) }}"
   - sensor:
-      name: "CCTV SSD Health"
-      command: "cat /config/sda_health.txt"
+      name: "120gb SSD Health"
+      command: "cat /config/sdc_health.txt"
       unit_of_measurement: "%"
       icon: mdi:harddisk
-      scan_interval: 60
+      scan_interval: 600
       value_template: "{{ value | float(0) }}"
+  - sensor:
+      name: "CCTV HDD Health"
+      command: "cat /config/cctv_hdd_health.txt"
+      unit_of_measurement: "%"
+      icon: mdi:harddisk
+      scan_interval: 600 
+      value_template: "{{ value | float(0) }}" 
   - sensor:
       name: "RPi5 Live Power Draw"
       unique_id: rpi5_live_power_draw_unique
@@ -185,6 +192,16 @@ mqtt:
         name: "REDWAN-MASTER-NODE"
         model: "ESP32 WROOM Center Hub"
         manufacturer: "Expressif / Redwan"
+    # --- DEVICE 3: PI BUZZER SWITCH ---
+    - name: "PiServer Buzzer"
+      state_topic: "home/redwannabil/buzzer/state"
+      command_topic: "home/redwannabil/buzzer/cmd"
+      payload_on: "ON"       # Changed to ON for a solid tone
+      payload_off: "OFF"
+      state_on: "ON"         # Changed to ON
+      state_off: "OFF"
+      icon: mdi:alarm-bell
+      unique_id: "piserver_buzzer_node"
 
   binary_sensor:
     - name: "CSI Room Occupancy"
@@ -334,9 +351,12 @@ mqtt:
         manufacturer: "Hi-Link"
  
 # ==========================================
-# SYSTEM RECORDER & DATABASE
+# SYSTEM RECORDER, HISTORY, & DATABASE
 # ==========================================
+history:
+
 recorder:
+  db_url: sqlite:////mnt/120gb_ssd/Container_Databases/ha_db/home-assistant_v2.db
   purge_keep_days: 2
   commit_interval: 60
   
@@ -354,16 +374,11 @@ recorder:
       - automation
       - script
       - scene
-      - sensor
       - binary_sensor
   # 2. Only record what you actually want to see graphs for
   include:
-    entities:
-      - sensor.kitchen_temperature
-      - sensor.kitchen_humidity
-      - input_boolean.kobold_alarm_trigger
-      - sensor.main_nvme_health
-      - sensor.cctv_ssd_health
+    domains:
+      - sensor # This allows all your energy and power sensors to be recorded
 
 # ==========================================
 # ADVANCED TEMPLATE SENSORS
