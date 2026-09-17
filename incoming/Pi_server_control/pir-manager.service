@@ -1,0 +1,14 @@
+[Unit]
+Description=Pi 5 PIR Motion and OLED Daemon
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/redwannabil/homelab/scripts
+ExecStart=/usr/bin/python3 /home/redwannabil/homelab/scripts/pir_manager.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
