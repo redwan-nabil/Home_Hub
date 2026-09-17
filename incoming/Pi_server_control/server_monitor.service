@@ -1,0 +1,17 @@
+[Unit]
+Description=Raspberry Pi Server Monitor (OLED & Sensors)
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+# Adjust this path if your script is in a different location!
+ExecStart=/usr/bin/python3 /home/redwannabil/server_monitor.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
