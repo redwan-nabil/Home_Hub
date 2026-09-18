@@ -32,6 +32,30 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}
         run: python .github/scripts/ai_architect.py
       
-      - uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "🤖 AI Automated Portfolio Build (GitHub Native AI)"
+      - name: Commit and Push Changes
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "🤖 AI Automated Portfolio Build (GitHub Native AI)"
+
+          for attempt in 1 2 3; do
+            if git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              exit 0
+            fi
+
+            git rebase --abort || true
+            echo "Push attempt ${attempt} failed. Retrying..."
+            sleep 2
+          done
+
+          echo "Failed to push after 3 attempts."
+          exit 1
