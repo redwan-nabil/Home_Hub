@@ -31,6 +31,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}
         run: python .github/scripts/ai_architect.py
+
+      - name: Rebase on latest remote changes
+        run: git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
       
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
