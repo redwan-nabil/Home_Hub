@@ -11,3 +11,5 @@ sudo rsync -a --delete /mnt/120gb_ssd/Container_Databases/ /mnt/sdcard_storage/D
 
 # 3. Restart all containers
 sudo docker start $CONTAINERS
+
+docker exec -t immich_postgres pg_dumpall -c -U postgres > "/mnt/sdcard_storage/Database_Backups/immich_db/immich_backup_$(date +%F).sql"
