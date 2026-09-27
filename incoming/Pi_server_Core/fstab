@@ -1,0 +1,4 @@
+proc            /proc           proc    defaults         0      0
+PARTUUID=f2527713-01  /boot/firmware  vfat    defaults,noatime  0      2
+PARTUUID=f2527713-02  /               ext4    defaults,noatime  0      1
+/mnt/sdcard_storage/swapfile none swap sw 0 0
