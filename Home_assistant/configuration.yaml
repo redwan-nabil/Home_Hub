@@ -33,9 +33,12 @@ input_boolean:
   earthquake_alarm_armed:
     name: "Earthquake Alarm Armed"
     icon: mdi:vibrate
-  kobold_alarm_trigger:
-    name: "Kobold Alarm Ringing State"
-    icon: mdi:alarm-bell
+  pir_alarm_armed:
+    name: Arm PIR Intruder Alarm
+    icon: mdi:motion-sensor
+  pir_alarm_reset:
+    name: Reset Security Alarms
+    icon: mdi:restart
 
 # ==========================================
 # SHELL COMMANDS
@@ -44,15 +47,10 @@ shell_command:
   run_ha_backup: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."  
   restart_nextcloud: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."
   restart_cctv: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."
-  export_flight: >
-    sh -c "echo \"{{ log_data | replace('\'', '') }}\" >> /config/www/flight_history.csv"
-  cleanup_flight_log: >
-    tail -n 1000 /config/www/flight_history.csv > /config/www/tmp.csv && mv /config/www/tmp.csv /config/www/flight_history.csv
-  cleanup_helicopter_log: >
-    tail -n 1000 /config/www/helicopter_history.csv > /config/www/tmp_heli.csv && mv /config/www/tmp_heli.csv /config/www/helicopter_history.csv
+  trigger_manual_sos: "curl -X POST http://127.0.0.1:8089/trigger_manual_sos"
 
 # ==========================================
-# COMMAND LINE SENSORS (With Safety Nets)
+# COMMAND LINE SENSORS
 # ==========================================
 command_line:
   - sensor:
@@ -61,27 +59,6 @@ command_line:
       unit_of_measurement: "RPM"
       scan_interval: 15
       value_template: "{{ value | float(0) }}"
-  - sensor:
-      name: "Main NVMe Health"
-      command: "cat /config/nvme_health.txt"
-      unit_of_measurement: "%"
-      icon: mdi:harddisk
-      scan_interval: 600
-      value_template: "{{ value | float(0) }}"
-  - sensor:
-      name: "120gb SSD Health"
-      command: "cat /config/sdc_health.txt"
-      unit_of_measurement: "%"
-      icon: mdi:harddisk
-      scan_interval: 600
-      value_template: "{{ value | float(0) }}"
-  - sensor:
-      name: "CCTV HDD Health"
-      command: "cat /config/cctv_hdd_health.txt"
-      unit_of_measurement: "%"
-      icon: mdi:harddisk
-      scan_interval: 600 
-      value_template: "{{ value | float(0) }}" 
   - sensor:
       name: "RPi5 Live Power Draw"
       unique_id: rpi5_live_power_draw_unique
@@ -196,9 +173,9 @@ mqtt:
     - name: "PiServer Buzzer"
       state_topic: "home/redwannabil/buzzer/state"
       command_topic: "home/redwannabil/buzzer/cmd"
-      payload_on: "ON"       # Changed to ON for a solid tone
+      payload_on: "ON"
       payload_off: "OFF"
-      state_on: "ON"         # Changed to ON
+      state_on: "ON"
       state_off: "OFF"
       icon: mdi:alarm-bell
       unique_id: "piserver_buzzer_node"
@@ -317,6 +294,11 @@ mqtt:
         model: "ESP32 WROOM Center Hub"
         manufacturer: "Expressif / Redwan"
 
+    - name: "SIM Module Status"
+      state_topic: "home/redwannabil/sim/state"
+      icon: mdi:sim
+      unique_id: "piserver_sim_status"
+
   light:
     # --- DEVICE 1: BATHROOM RADAR NODE ---
     - name: "redwans_bath_node_light"
@@ -349,6 +331,12 @@ mqtt:
         name: "REDWAN-BATH-NODE"
         model: "HLK-LD2410B Radar"
         manufacturer: "Hi-Link"
+  button:
+    - name: "Manual SOS Call Trigger"
+      command_topic: "home/redwannabil/sim/cmd"
+      payload_press: "SOS: Manual User Trigger"
+      icon: mdi:phone-alert
+      unique_id: "piserver_sim_sos_node"
  
 # ==========================================
 # SYSTEM RECORDER, HISTORY, & DATABASE
@@ -356,11 +344,11 @@ mqtt:
 history:
 
 recorder:
-  db_url: sqlite:////mnt/120gb_ssd/Container_Databases/ha_db/home-assistant_v2.db
+  db_url: sqlite:////config/external_db/home-assistant_v2.db
   purge_keep_days: 2
   commit_interval: 60
   
-  # 1. Block massive domains entirely from background processing
+  # Block heavy/noisy domains from background processing
   exclude:
     domains:
       - sun
@@ -375,10 +363,11 @@ recorder:
       - script
       - scene
       - binary_sensor
-  # 2. Only record what you actually want to see graphs for
+      
+  # Only record sensor data (energy, power, etc.)
   include:
     domains:
-      - sensor # This allows all your energy and power sensors to be recorded
+      - sensor
 
 # ==========================================
 # ADVANCED TEMPLATE SENSORS
@@ -545,16 +534,6 @@ geo_location:
     longitude: 90.4531719
 
 rest_command:
-  qbit_pause_all:
-    url: "http://192.168.0.40:8082/api/v2/torrents/pause"
-    method: POST
-    payload: "hashes=all"
-    content_type: "application/x-www-form-urlencoded"
-  qbit_resume_all:
-    url: "http://192.168.0.40:8082/api/v2/torrents/resume"
-    method: POST
-    payload: "hashes=all"
-    content_type: "application/x-www-form-urlencoded"
 
 google_assistant:
   project_id: redwans-smart-home-hub
