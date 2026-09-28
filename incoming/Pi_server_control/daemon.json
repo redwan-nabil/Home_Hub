@@ -1,0 +1,9 @@
+{
+  "data-root": "/mnt/120gb_ssd/docker_data",
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
+  "dns": ["1.1.1.1", "8.8.8.8"]
+}
