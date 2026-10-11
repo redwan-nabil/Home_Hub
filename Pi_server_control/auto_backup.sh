@@ -22,7 +22,7 @@ NC_SOURCE="/home/redwannabil/nextcloud"
 TOKEN="REDACTED_BY_SYSADMIN"
 CHAT_ID="REDACTED_BY_SYSADMIN"
 HA_TOKEN="REDACTED_BY_SYSADMIN"
-HA_URL="http://192.168.0.40:8123/api/states/sensor.os_backup_status"
+HA_URL="http://127.0.0.1:8123/api/states/sensor.os_backup_status"
 
 send_msg() {
     # Telegram
@@ -83,6 +83,16 @@ send_msg "🚀 *Backup Pipeline Started:* Preparing split-architecture system...
 send_to_ha "Running" "Preparing split-architecture system..."
 
 # --- STEP 0: PREPARE FOLDERS & CLEANUP ---
+# Foolproof mount check for the backup drive
+sudo mount /mnt/usb_backup > /dev/null 2>&1
+sleep 3
+
+if ! df -h | grep -q "/mnt/usb_backup"; then
+    send_msg "❌ *FATAL ERROR:* USB Backup drive is not mounted! Aborted."
+    send_to_ha "Error" "USB Backup drive is not mounted! Aborted."
+    exit 1
+fi
+
 sudo mkdir -p "$OS_DIR" "$DB_DIR" "$HA_DIR" "$NC_DIR"
 sudo apt autoremove -y >> "$LOGFILE" 2>&1
 sudo apt clean >> "$LOGFILE" 2>&1
