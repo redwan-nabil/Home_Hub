@@ -13,7 +13,7 @@ export RESTIC_PASSWORD_FILE="/root/.restic-pass"
 
 # Home Assistant Configuration
 HA_TOKEN="REDACTED_BY_SYSADMIN"
-HA_URL="http://192.168.0.40:8123/api/states/sensor.nas_backup_status"
+HA_URL="http://127.0.0.1:8123/api/states/sensor.nas_backup_status"
 
 send_to_ha() {
     local state="$1"
@@ -25,13 +25,19 @@ send_to_ha() {
 }
 
 # 2. MOUNT THE BACKUP DRIVE
-mount $BACKUP_DIR
-if ! mountpoint -q $BACKUP_DIR; then
+mount $BACKUP_DIR > /dev/null 2>&1
+sleep 3
+
+if ! df -h | grep -q "$BACKUP_DIR"; then
     send_to_ha "Error" "Failed to mount backup drive! Aborted."
     exit 1
 fi
 
-if ! mountpoint -q $NAS_DIR; then
+# Natively trigger the OS to wake up and access the NAS directory
+ls $NAS_DIR > /dev/null 2>&1
+sleep 2
+
+if ! df -h | grep -q "$NAS_DIR"; then
     send_to_ha "Error" "NAS drive is not mounted! Aborted."
     umount $BACKUP_DIR
     exit 1
