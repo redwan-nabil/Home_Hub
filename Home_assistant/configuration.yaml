@@ -48,7 +48,8 @@ shell_command:
   restart_nextcloud: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."
   restart_cctv: "ssh -o StrictHostKeyChecking=no -i /config/ssh_keys/id_rsa..."
   trigger_manual_sos: "curl -X POST http://127.0.0.1:8089/trigger_manual_sos"
-
+  trigger_nas_backup: "sh /config/run_nas.sh"
+  trigger_os_backup: "sh /config/run_os.sh"
 # ==========================================
 # COMMAND LINE SENSORS
 # ==========================================
@@ -351,6 +352,8 @@ recorder:
   # Block heavy/noisy domains from background processing
   exclude:
     domains:
+      - sensor.airspace_surveillance_log_10km
+      - sensor.helicopter_surveillance_log_10km 
       - sun
       - weather
       - camera
